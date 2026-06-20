@@ -159,9 +159,9 @@
 
     <div class="panel">
       <h2>🚚 配送先（ホテル）</h2>
-      <div class="field"><label>ホテル名</label><input id="hotelName" placeholder="例: コンフォートイン宗像"></div>
+      <div class="field"><label>ホテル名 <span style="color:var(--muted);font-weight:400">（過去のを選ぶと住所も自動）</span></label><input id="hotelName" list="hotelList" placeholder="例: コンフォートイン宗像"></div>
       <div class="grid2">
-        <div class="field"><label>郵便番号</label><input id="hotelZip" placeholder="例: 811-3414"></div>
+        <div class="field"><label>郵便番号 <span style="color:var(--muted);font-weight:400">（7桁で住所自動）</span></label><input id="hotelZip" inputmode="numeric" placeholder="例: 811-3414"></div>
         <div class="field"><label>ホテル電話番号</label><input id="hotelTel" placeholder="例: 0940-37-0411"></div>
       </div>
       <div class="field"><label>ホテル住所</label><input id="hotelAddr" placeholder="例: 福岡県宗像市光岡992-1"></div>
@@ -225,6 +225,7 @@
 
 <datalist id="dirList"></datalist>
 <datalist id="itemNameList"></datalist>
+<datalist id="hotelList"></datalist>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -244,7 +245,8 @@
   const DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbxiEpFunDcr58TBot_btLYYAQUhIoyBB2KDz4mAIMWtRVNV1oi7RnFpwFhPy5ISwyy9/exec";
   // ▲▲▲ ここだけ書き換えればOK ▲▲▲
 
-  let orders=[], master=[], curId=null;
+  const LS_PROFILE="hatchu_profile";
+  let orders=[], master=[], curId=null, hotels={}, lastZip="";
   let gasUrl=localStorage.getItem(LS_URL)||DEFAULT_GAS_URL;
   const isCloud=()=>!!gasUrl;
 
@@ -295,7 +297,7 @@
       toast("取得失敗（キャッシュ表示中）: "+e.message);
     }
   }
-  function renderAll(){renderSaved();refreshDirList();refreshItemNameList();renderQuickChips();if($("tab-report").style.display!=="none")renderReport();if($("tab-master").style.display!=="none")renderMaster();}
+  function renderAll(){renderSaved();refreshDirList();refreshItemNameList();refreshHotelList();renderQuickChips();if($("tab-report").style.display!=="none")renderReport();if($("tab-master").style.display!=="none")renderMaster();}
 
   // ---------- タブ ----------
   document.querySelectorAll(".tab").forEach(tab=>{
@@ -399,6 +401,22 @@
   }
   function refreshDirList(){const dirs=[...new Set(orders.map(o=>o.data.director).filter(Boolean))].sort();$("dirList").innerHTML=dirs.map(d=>`<option value="${esc(d)}">`).join("");}
   function refreshItemNameList(){$("itemNameList").innerHTML=master.map(m=>`<option value="${esc(m.name)}">`).join("");}
+  function refreshHotelList(){
+    hotels={};
+    orders.forEach(o=>{const d=o.data||{};if(d.hotelName&&!hotels[d.hotelName])hotels[d.hotelName]={zip:d.hotelZip||"",addr:d.hotelAddr||"",tel:d.hotelTel||""};});
+    $("hotelList").innerHTML=Object.keys(hotels).map(n=>`<option value="${esc(n)}">`).join("");
+  }
+
+  // ---- 自分の情報を記憶（端末ごと） ----
+  function loadProfile(){try{return JSON.parse(localStorage.getItem(LS_PROFILE))||{};}catch(e){return{};}}
+  function saveProfile(){localStorage.setItem(LS_PROFILE,JSON.stringify({
+    director:$("director").value.trim(),requester:$("requester").value.trim(),
+    receiver:$("receiver").value.trim(),toName:$("toName").value.trim(),greeting:$("greeting").value.trim()
+  }));}
+  function freshData(){const p=loadProfile();return{
+    toName:p.toName||"平野 嵩大",greeting:p.greeting||"お願いします！",
+    director:p.director||"",requester:p.requester||"",receiver:p.receiver||"",orderDate:todayStr()
+  };}
 
   // ---------- マスタ画面 ----------
   function renderMaster(){const w=$("masterRows");w.innerHTML="";(master.length?master:[{}]).forEach(m=>addMasterRow(m));}
@@ -468,6 +486,27 @@
 
   // ---------- 保存・各種ボタン ----------
   FIELDS.forEach(f=>$(f).addEventListener("input",renderPreview));
+  // ホテル名を選ぶと住所など自動（空欄のみ補完）
+  $("hotelName").addEventListener("input",()=>{
+    const h=hotels[$("hotelName").value.trim()];if(!h)return;
+    if(!$("hotelZip").value&&h.zip)$("hotelZip").value=h.zip;
+    if(!$("hotelAddr").value&&h.addr)$("hotelAddr").value=h.addr;
+    if(!$("hotelTel").value&&h.tel)$("hotelTel").value=h.tel;
+    renderPreview();
+  });
+  // 郵便番号7桁→住所自動（zipcloud・無料）
+  $("hotelZip").addEventListener("input",async()=>{
+    const z=$("hotelZip").value.replace(/[^0-9]/g,"");
+    if(z.length!==7||z===lastZip)return;lastZip=z;
+    try{
+      const r=await fetch("https://zipcloud.ibsnet.co.jp/api/search?zipcode="+z);
+      const j=await r.json();
+      if(j.results&&j.results[0]){
+        const a=j.results[0],addr=(a.address1||"")+(a.address2||"")+(a.address3||"");
+        if(!$("hotelAddr").value){$("hotelAddr").value=addr;renderPreview();toast("住所を自動入力しました（番地を追記してください）");}
+      }
+    }catch(e){}
+  });
   $("addItem").onclick=()=>addItemRow().querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
     try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
@@ -482,11 +521,11 @@
       $("saveBtn").disabled=false;
     }
     const ex=orders.find(o=>o.id===id);if(ex)ex.data=record.data;else orders.unshift(record);
-    curId=id;cacheLocal();renderAll();toast("保存しました"+(isCloud()?"（全員共有）":"（ローカル）"));
+    curId=id;saveProfile();cacheLocal();renderAll();toast("保存しました"+(isCloud()?"（全員共有）":"（ローカル）"));
   };
   $("newBtn").onclick=()=>{
-    if(confirm("入力をクリアして新規発注にしますか？")){curId=null;document.querySelector('.tab[data-tab="order"]').click();
-      applyData({toName:$("toName").value||"平野 嵩大",greeting:$("greeting").value||"お願いします！",orderDate:todayStr()});window.scrollTo(0,0);}
+    if(confirm("入力をクリアして新規発注にしますか？")){curId=null;lastZip="";document.querySelector('.tab[data-tab="order"]').click();
+      applyData(freshData());window.scrollTo(0,0);}
   };
   $("reloadBtn").onclick=()=>{if(isCloud())refreshFromCloud();else toast("共有OFF。⚙共有設定でシートに接続してください");};
   $("configBtn").onclick=async()=>{
@@ -516,7 +555,7 @@
   loadLocal();seedMaster();
   setStatus();
   $("repMonth").value=todayStr().slice(0,7);
-  applyData({toName:"平野 嵩大",greeting:"お願いします！",orderDate:todayStr()});
+  applyData(freshData());
   renderAll();
   if(isCloud())refreshFromCloud(true);
 })();
