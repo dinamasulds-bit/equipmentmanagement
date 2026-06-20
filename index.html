@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>発注管理</title>
+<style>
+  :root{
+    --bg:#eef1f6; --panel:#fff; --border:#d7dce3; --text:#1f2733; --muted:#6b7685;
+    --accent:#2563eb; --accent-hover:#1d4ed8; --danger:#dc2626; --ok:#16a34a;
+    --chip:#eef2ff; --chip-text:#3730a3;
+    --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 22px;
+    display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20;box-shadow:var(--shadow);flex-wrap:wrap}
+  header h1{font-size:17px;margin:0}
+  .status{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px}
+  .status.cloud{background:#dcfce7;color:#166534}
+  .status.local{background:#fee2e2;color:#991b1b}
+  .header-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .tabs{display:flex;gap:4px;padding:0 22px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:53px;z-index:19;flex-wrap:wrap}
+  .tab{padding:12px 18px;cursor:pointer;border:none;background:none;font-size:14px;color:var(--muted);border-bottom:2px solid transparent;font-weight:600}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 22px}
+  .layout{display:grid;grid-template-columns:1fr 420px;gap:18px;align-items:start}
+  @media(max-width:980px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;box-shadow:var(--shadow);margin-bottom:16px}
+  .panel h2{font-size:14px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .field .req{color:var(--danger)}
+  input,select,textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);width:100%}
+  textarea{resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  button{font-family:inherit;font-size:14px;padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);cursor:pointer;font-weight:600}
+  button:hover{background:#f0f3f8}
+  button:disabled{opacity:.5;cursor:default}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn-primary:hover{background:var(--accent-hover)}
+  .btn-danger{color:var(--danger);border-color:#f0c0c0}
+  .btn-danger:hover{background:#fef2f2}
+  .btn-sm{padding:5px 9px;font-size:12px}
+  .btn-block{width:100%;justify-content:center}
+  .item-head,.item-row{display:grid;grid-template-columns:1fr 70px 60px 90px 86px 28px;gap:6px;align-items:center}
+  .item-head{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px;padding:0 2px}
+  .item-row{margin-bottom:6px}
+  .item-row input{margin:0;padding:7px 8px}
+  .item-row .sub{text-align:right;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden}
+  .item-row .rm{border:none;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0}
+  .item-row .rm:hover{color:var(--danger)}
+  .num{text-align:right}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{background:var(--chip);color:var(--chip-text);border:none;border-radius:99px;padding:4px 11px;font-size:12px;cursor:pointer;font-weight:600}
+  .chip:hover{filter:brightness(.96)}
+  .preview-wrap{position:sticky;top:120px}
+  .preview{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:16px;font-family:"SF Mono",Consolas,Menlo,monospace;font-size:13px;white-space:pre-wrap;line-height:1.7;max-height:50vh;overflow:auto;word-break:break-word}
+  .saved-item{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+  .saved-item .meta{flex:1;min-width:0}
+  .saved-item .meta .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .saved-item .meta .s{font-size:12px;color:var(--muted)}
+  .saved-item .amt{font-weight:800;color:var(--accent);white-space:nowrap}
+  .empty{text-align:center;color:var(--muted);padding:24px 0;font-size:13px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
+  th{background:#f7f9fc;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  td.r,th.r{text-align:right}
+  tfoot td{font-weight:800}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2733;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:100;max-width:90%}
+  .toast.show{opacity:1}
+  .total-amt{font-size:22px;font-weight:800;color:var(--accent)}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .badge{font-size:11px;background:#e2e8f0;color:#475569;border-radius:6px;padding:2px 7px;font-weight:700}
+  details{margin-bottom:8px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:#fafbfd}
+  summary{cursor:pointer;font-weight:700;display:flex;gap:10px;align-items:center}
+  summary .amt{margin-left:auto;color:var(--accent)}
+  .setup-box{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:14px}
+  .setup-box code{background:#fff7ed;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 発注管理</h1>
+  <span class="status local" id="status">ローカル</span>
+  <div class="header-actions">
+    <button id="reloadBtn" title="シートから最新を取得">🔄 更新</button>
+    <button id="newBtn">＋ 新規発注</button>
+    <button id="configBtn">⚙ 共有設定</button>
+    <button id="exportBtn">書出</button>
+    <button id="importBtn">読込</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none">
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-tab="order">発注作成</button>
+  <button class="tab" data-tab="master">品目マスタ（単価）</button>
+  <button class="tab" data-tab="report">集計</button>
+</div>
+
+<!-- ============ 発注作成 ============ -->
+<section id="tab-order"><div class="wrap layout">
+  <div>
+    <div class="panel">
+      <h2>📍 宛先・基本情報</h2>
+      <div class="grid2">
+        <div class="field"><label>宛先（送る相手）</label><input id="toName" placeholder="平野 嵩大"></div>
+        <div class="field"><label>あいさつ文</label><input id="greeting" placeholder="お願いします！"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>ディレクター名 <span class="req">*必須</span></label><input id="director" list="dirList" placeholder="例: 菊地耕大"></div>
+        <div class="field"><label>発注日（集計の基準）</label><input id="orderDate" type="date"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>次回現場名</label><input id="site" placeholder="例: イオンモール福津"></div>
+        <div class="field"><label>現地着希望日</label><input id="arrive" placeholder="例: 6/23"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>依頼者</label><input id="requester" placeholder="例: 菊地耕大"></div>
+        <div class="field"><label>ホテル受け取り者</label><input id="receiver" placeholder="例: キクチコウダイ"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🚚 配送先（ホテル）</h2>
+      <div class="field"><label>ホテル名</label><input id="hotelName" placeholder="例: コンフォートイン宗像"></div>
+      <div class="grid2">
+        <div class="field"><label>郵便番号</label><input id="hotelZip" placeholder="例: 811-3414"></div>
+        <div class="field"><label>ホテル電話番号</label><input id="hotelTel" placeholder="例: 0940-37-0411"></div>
+      </div>
+      <div class="field"><label>ホテル住所</label><input id="hotelAddr" placeholder="例: 福岡県宗像市光岡992-1"></div>
+      <div class="hint">※電話番号はホテルに直接発注する場合のみ出力されます</div>
+    </div>
+
+    <div class="panel">
+      <h2>📦 発注分</h2>
+      <div class="item-head"><div>品名</div><div class="num">数量</div><div>単位</div><div class="num">単価</div><div class="num">小計</div><div></div></div>
+      <div id="items"></div>
+      <button class="btn-sm btn-block" id="addItem" style="margin-top:6px">＋ 品目を追加</button>
+      <div class="hint">品名を入力/選択すると単価マスタから自動入力。単価はその場で上書き可。URLや「何でもいい」等もそのまま品名に書けます（単価0で金額に含まれません）。</div>
+      <div class="chips" id="quickChips"></div>
+      <div style="text-align:right;margin-top:12px">合計金額 <span class="total-amt" id="orderTotal">¥0</span></div>
+    </div>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="panel">
+      <h2>👀 プレビュー <span style="margin-left:auto;font-size:11px;color:var(--muted)">そのまま貼れます</span></h2>
+      <div class="preview" id="preview"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-primary btn-block" id="copyBtn">📋 コピー</button>
+        <button id="saveBtn">💾 保存</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>🗂 履歴（全員共有）</h2>
+      <div id="savedList"></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ 品目マスタ ============ -->
+<section id="tab-master" style="display:none"><div class="wrap">
+  <div class="panel" style="max-width:720px">
+    <h2>🏷 品目マスタ（単価設定）</h2>
+    <p class="hint" style="margin-top:0">単価を登録すると、発注作成で品名を選んだとき自動で金額計算されます。保存すると全員に共有されます。</p>
+    <div class="item-head" style="grid-template-columns:1fr 120px 90px 28px">
+      <div>品名</div><div class="num">単価(円)</div><div>単位</div><div></div>
+    </div>
+    <div id="masterRows"></div>
+    <button class="btn-sm" id="addMaster" style="margin-top:8px">＋ 品目を追加</button>
+    <div style="margin-top:14px"><button class="btn-primary" id="saveMaster">💾 マスタを保存</button></div>
+  </div>
+</div></section>
+
+<!-- ============ 集計 ============ -->
+<section id="tab-report" style="display:none"><div class="wrap">
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0">📊 集計</h2>
+      <label class="hint" style="margin-left:auto">対象月</label>
+      <input type="month" id="repMonth" style="width:auto">
+      <button class="btn-sm" id="repAll">全期間</button>
+      <button class="btn-sm" id="repCsv">CSV書出</button>
+    </div>
+    <div id="reportBody"></div>
+  </div>
+</div></section>
+
+<datalist id="dirList"></datalist>
+<datalist id="itemNameList"></datalist>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  const LS_ORDERS="hatchu_orders_cache", LS_MASTER="hatchu_master_cache", LS_URL="hatchu_gas_url";
+  const FIELDS=["toName","greeting","director","orderDate","site","arrive","requester","receiver","hotelName","hotelZip","hotelTel","hotelAddr"];
+  const $=id=>document.getElementById(id);
+  const yen=n=>"¥"+(Math.round(Number(n)||0)).toLocaleString("ja-JP");
+  const num=v=>{const n=Number(String(v).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;};
+  function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);}
+  function uid(){return "x"+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36);}
+  function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+  function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+
+  let orders=[], master=[], curId=null;
+  let gasUrl=localStorage.getItem(LS_URL)||"";
+  const isCloud=()=>!!gasUrl;
+
+  // ---------- クラウド通信 ----------
+  async function apiGet(){
+    const u=gasUrl+(gasUrl.includes("?")?"&":"?")+"action=list&t="+Date.now();
+    const res=await fetch(u);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    return res.json();
+  }
+  async function apiPost(body){
+    const res=await fetch(gasUrl,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const j=await res.json();
+    if(!j.ok) throw new Error(j.error||"保存失敗");
+    return j;
+  }
+
+  // ---------- 永続化（ローカルキャッシュ） ----------
+  function cacheLocal(){localStorage.setItem(LS_ORDERS,JSON.stringify(orders));localStorage.setItem(LS_MASTER,JSON.stringify(master));}
+  function loadLocal(){
+    try{orders=JSON.parse(localStorage.getItem(LS_ORDERS))||[];}catch(e){orders=[];}
+    try{master=JSON.parse(localStorage.getItem(LS_MASTER))||[];}catch(e){master=[];}
+  }
+  function seedMaster(){
+    if(master.length)return;
+    master=["リンゴジュース","お茶","あめ","スクイーズ","スクイーズボール","シール","ポケティ","金ポケティ","うまい棒","金テ","電池","スクラッチカード","スクラッチシール","コードリール","テープライト"]
+      .map(n=>({name:n,price:0,unit:""}));
+  }
+  function masterByName(n){return master.find(m=>m.name===n);}
+
+  function setStatus(){
+    const s=$("status");
+    if(isCloud()){s.className="status cloud";s.textContent="☁ 共有中";}
+    else{s.className="status local";s.textContent="ローカル（共有OFF）";}
+  }
+
+  async function refreshFromCloud(silent){
+    if(!isCloud())return;
+    try{
+      if(!silent)toast("シートから取得中…");
+      const d=await apiGet();
+      orders=d.orders||[]; master=(d.master&&d.master.length)?d.master:master;
+      seedMaster(); cacheLocal();
+      renderAll();
+      if(!silent)toast("最新を取得しました");
+    }catch(e){
+      toast("取得失敗（キャッシュ表示中）: "+e.message);
+    }
+  }
+  function renderAll(){renderSaved();refreshDirList();refreshItemNameList();renderQuickChips();if($("tab-report").style.display!=="none")renderReport();if($("tab-master").style.display!=="none")renderMaster();}
+
+  // ---------- タブ ----------
+  document.querySelectorAll(".tab").forEach(tab=>{
+    tab.onclick=()=>{
+      document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+      tab.classList.add("active");
+      const id=tab.dataset.tab;
+      $("tab-order").style.display=id==="order"?"":"none";
+      $("tab-master").style.display=id==="master"?"":"none";
+      $("tab-report").style.display=id==="report"?"":"none";
+      if(id==="master")renderMaster();
+      if(id==="report")renderReport();
+    };
+  });
+
+  // ---------- 品目行 ----------
+  function addItemRow(it){
+    it=it||{};
+    const row=document.createElement("div");
+    row.className="item-row";
+    row.innerHTML=`<input class="i-name" list="itemNameList" placeholder="品名 / URL / メモ">
+      <input class="i-qty num" type="text" inputmode="decimal" placeholder="0">
+      <input class="i-unit" placeholder="箱">
+      <input class="i-price num" type="text" inputmode="numeric" placeholder="0">
+      <div class="sub">¥0</div>
+      <button class="rm" title="削除">×</button>`;
+    const name=row.querySelector(".i-name"),qty=row.querySelector(".i-qty"),unit=row.querySelector(".i-unit"),price=row.querySelector(".i-price"),sub=row.querySelector(".sub");
+    name.value=it.name||"";qty.value=it.qty??"";unit.value=it.unit||"";price.value=it.price??"";
+    function recalc(){sub.textContent=yen(num(qty.value)*num(price.value));renderTotalAndPreview();}
+    name.addEventListener("input",()=>{const m=masterByName(name.value);if(m){if(!price.value)price.value=m.price||"";if(!unit.value&&m.unit)unit.value=m.unit;}recalc();});
+    qty.addEventListener("input",recalc);
+    price.addEventListener("input",recalc);
+    unit.addEventListener("input",renderPreview);
+    qty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();const r=addItemRow();r.querySelector(".i-name").focus();}});
+    row.querySelector(".rm").onclick=()=>{row.remove();ensureRow();renderTotalAndPreview();};
+    $("items").appendChild(row);
+    sub.textContent=yen(num(qty.value)*num(price.value));
+    return row;
+  }
+  function ensureRow(){if($("items").children.length===0)addItemRow();}
+  function getItems(){
+    return [...$("items").children].map(r=>({
+      name:r.querySelector(".i-name").value.trim(),
+      qty:r.querySelector(".i-qty").value.trim(),
+      unit:r.querySelector(".i-unit").value.trim(),
+      price:r.querySelector(".i-price").value.trim()
+    })).filter(it=>it.name||it.qty||it.price);
+  }
+  function orderTotal(items){return items.reduce((s,it)=>s+num(it.qty)*num(it.price),0);}
+
+  // ---------- テキスト ----------
+  function itemLine(it){const q=it.qty?("×"+it.qty+(it.unit||"")):"";if(!it.name)return "・"+(it.qty||"")+(it.unit||"");return "・"+it.name+q;}
+  function buildText(){
+    const v=id=>$(id).value.trim();const L=[];
+    L.push(v("toName")?"@"+v("toName")+" ":"");
+    L.push(v("greeting")||"お願いします！");L.push("");
+    L.push("(必須)ディレクター名:"+v("director"));L.push("");
+    L.push("次回現場名:"+v("site"));L.push("依頼者:"+v("requester"));L.push("ホテル受け取り者:"+v("receiver"));L.push("");
+    L.push("ホテル名:"+v("hotelName"));L.push("郵便番号:"+v("hotelZip"));L.push("ホテル住所:"+v("hotelAddr"));
+    L.push("現地着希望日:"+v("arrive"));L.push("ホテル電話番号:"+v("hotelTel"));L.push("※ホテルに直接発注する場合のみ記載");L.push("");
+    L.push("【発注分】");
+    const items=getItems();if(items.length)items.forEach(it=>L.push(itemLine(it)));else L.push("・");
+    return L.join("\n");
+  }
+  function renderPreview(){$("preview").textContent=buildText();}
+  function renderTotalAndPreview(){$("orderTotal").textContent=yen(orderTotal(getItems()));renderPreview();}
+
+  function snapshot(){const o={};FIELDS.forEach(f=>o[f]=$(f).value);o.items=getItems();return o;}
+  function applyData(d){
+    FIELDS.forEach(f=>$(f).value=d[f]||"");
+    if(!$("orderDate").value)$("orderDate").value=todayStr();
+    $("items").innerHTML="";(d.items&&d.items.length?d.items:[{}]).forEach(addItemRow);
+    ensureRow();renderTotalAndPreview();
+  }
+
+  // ---------- 履歴リスト ----------
+  function renderSaved(){
+    const w=$("savedList");
+    if(!orders.length){w.innerHTML=`<div class="empty">${isCloud()?"履歴はまだありません。":"共有OFF。右上「⚙共有設定」でGoogleシートに接続すると全員で履歴を共有できます。"}</div>`;return;}
+    w.innerHTML=orders.map(s=>`<div class="saved-item">
+      <div class="meta">
+        <div class="t">${esc(s.data.site||s.data.director||"(無題)")}</div>
+        <div class="s">${esc(s.data.director||"")}${s.data.orderDate?" / "+esc(s.data.orderDate):""}${s.data.items?.length?" / "+s.data.items.length+"品":""}</div>
+      </div>
+      <div class="amt">${yen(orderTotal(s.data.items||[]))}</div>
+      <button class="btn-sm" data-load="${s.id}">開く</button>
+      <button class="btn-sm" data-dup="${s.id}">複製</button>
+      <button class="btn-sm btn-danger" data-del="${s.id}">削除</button>
+    </div>`).join("");
+    w.querySelectorAll("[data-load]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.load);curId=s.id;applyData(s.data);document.querySelector('.tab[data-tab="order"]').click();toast("読み込みました");window.scrollTo(0,0);});
+    w.querySelectorAll("[data-dup]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.dup);curId=null;const c=JSON.parse(JSON.stringify(s.data));c.orderDate=todayStr();applyData(c);document.querySelector('.tab[data-tab="order"]').click();toast("複製しました（保存で新規追加）");window.scrollTo(0,0);});
+    w.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delOrder(b.dataset.del));
+  }
+  async function delOrder(id){
+    const s=orders.find(x=>x.id===id);if(!s)return;
+    if(!confirm(`「${s.data.site||s.data.director||"無題"}」を削除しますか？`))return;
+    if(isCloud()){
+      try{toast("削除中…");await apiPost({type:"delete",id});}catch(e){alert("削除失敗: "+e.message);return;}
+    }
+    orders=orders.filter(x=>x.id!==id);if(curId===id)curId=null;cacheLocal();renderAll();toast("削除しました");
+  }
+  function refreshDirList(){const dirs=[...new Set(orders.map(o=>o.data.director).filter(Boolean))].sort();$("dirList").innerHTML=dirs.map(d=>`<option value="${esc(d)}">`).join("");}
+  function refreshItemNameList(){$("itemNameList").innerHTML=master.map(m=>`<option value="${esc(m.name)}">`).join("");}
+
+  // ---------- マスタ画面 ----------
+  function renderMaster(){const w=$("masterRows");w.innerHTML="";(master.length?master:[{}]).forEach(m=>addMasterRow(m));}
+  function addMasterRow(m){
+    m=m||{};
+    const row=document.createElement("div");row.className="item-row";row.style.gridTemplateColumns="1fr 120px 90px 28px";
+    row.innerHTML=`<input class="m-name" placeholder="品名">
+      <input class="m-price num" type="text" inputmode="numeric" placeholder="0">
+      <input class="m-unit" placeholder="箱">
+      <button class="rm" title="削除">×</button>`;
+    row.querySelector(".m-name").value=m.name||"";row.querySelector(".m-price").value=m.price??"";row.querySelector(".m-unit").value=m.unit||"";
+    row.querySelector(".rm").onclick=()=>row.remove();
+    $("masterRows").appendChild(row);return row;
+  }
+  $("addMaster").onclick=()=>addMasterRow().querySelector(".m-name").focus();
+  $("saveMaster").onclick=async()=>{
+    const newMaster=[...$("masterRows").children].map(r=>({name:r.querySelector(".m-name").value.trim(),price:num(r.querySelector(".m-price").value),unit:r.querySelector(".m-unit").value.trim()})).filter(m=>m.name);
+    if(isCloud()){try{$("saveMaster").disabled=true;toast("保存中…");await apiPost({type:"master",master:newMaster});}catch(e){alert("保存失敗: "+e.message);$("saveMaster").disabled=false;return;}$("saveMaster").disabled=false;}
+    master=newMaster;cacheLocal();refreshItemNameList();renderQuickChips();toast("マスタを保存しました"+(isCloud()?"（共有）":""));
+  };
+
+  // ---------- 集計 ----------
+  function ymOf(d){return (d||"").slice(0,7);}
+  function currentReportOrders(){const m=$("repMonth").value;return orders.filter(o=>!m||ymOf(o.data.orderDate)===m);}
+  function renderReport(){
+    const list=currentReportOrders();const body=$("reportBody");
+    if(!list.length){body.innerHTML=`<div class="empty">対象期間の発注がありません。</div>`;return;}
+    const byDir={};
+    list.forEach(o=>{const d=o.data.director||"(未設定)";byDir[d]=byDir[d]||{total:0,count:0,items:{}};byDir[d].count++;
+      (o.data.items||[]).forEach(it=>{const amt=num(it.qty)*num(it.price);byDir[d].total+=amt;if(it.name){const e=byDir[d].items[it.name]=byDir[d].items[it.name]||{qty:0,amt:0};e.qty+=num(it.qty);e.amt+=amt;}});});
+    const dirs=Object.keys(byDir).sort((a,b)=>byDir[b].total-byDir[a].total);
+    const grand=dirs.reduce((s,d)=>s+byDir[d].total,0);
+    let html=`<table><thead><tr><th>ディレクター</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
+    html+=dirs.map(d=>`<tr><td>${esc(d)}</td><td class="r">${byDir[d].count}件</td><td class="r"><strong>${yen(byDir[d].total)}</strong></td></tr>`).join("");
+    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}件</td><td class="r">${yen(grand)}</td></tr></tfoot></table>`;
+    html+=`<h2 style="margin:22px 0 10px">品目別の内訳（ディレクター別）</h2>`;
+    html+=dirs.map(d=>{
+      const items=Object.entries(byDir[d].items).sort((a,b)=>b[1].amt-a[1].amt);
+      const rows=items.map(([n,e])=>`<tr><td>${esc(n)}</td><td class="r">${e.qty||""}</td><td class="r">${yen(e.amt)}</td></tr>`).join("")||`<tr><td colspan="3" class="empty" style="padding:10px">品目なし</td></tr>`;
+      return `<details><summary>${esc(d)} <span class="badge">${byDir[d].count}件</span><span class="amt">${yen(byDir[d].total)}</span></summary>
+        <table style="margin-top:8px"><thead><tr><th>品名</th><th class="r">数量計</th><th class="r">金額</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+    }).join("");
+    body.innerHTML=html;
+  }
+  $("repMonth").onchange=renderReport;
+  $("repAll").onclick=()=>{$("repMonth").value="";renderReport();};
+  $("repCsv").onclick=()=>{
+    const list=currentReportOrders();if(!list.length){toast("対象データがありません");return;}
+    const rows=[["発注日","ディレクター","現場","品名","数量","単位","単価","金額"]];
+    list.forEach(o=>(o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.director||"",o.data.site||"",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price)])));
+    const csv=rows.map(r=>r.map(c=>{c=String(c??"");return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(",")).join("\r\n");
+    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="発注集計.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
+  // ---------- quick chips ----------
+  function renderQuickChips(){
+    $("quickChips").innerHTML=master.slice(0,16).map(m=>`<button class="chip" data-q="${esc(m.name)}">+ ${esc(m.name)}</button>`).join("");
+    $("quickChips").querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{
+      const rows=[...$("items").children];const last=rows[rows.length-1];let target;
+      if(last&&!last.querySelector(".i-name").value&&!last.querySelector(".i-qty").value)target=last;else target=addItemRow();
+      target.querySelector(".i-name").value=b.dataset.q;
+      const m=masterByName(b.dataset.q);if(m){target.querySelector(".i-price").value=m.price||"";if(m.unit)target.querySelector(".i-unit").value=m.unit;}
+      target.querySelector(".i-name").dispatchEvent(new Event("input"));
+    });
+  }
+
+  // ---------- 保存・各種ボタン ----------
+  FIELDS.forEach(f=>$(f).addEventListener("input",renderPreview));
+  $("addItem").onclick=()=>addItemRow().querySelector(".i-name").focus();
+  $("copyBtn").onclick=async()=>{
+    try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
+    catch(e){const ta=document.createElement("textarea");ta.value=buildText();document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();toast("コピーしました");}
+  };
+  $("saveBtn").onclick=async()=>{
+    if(!$("director").value.trim()){toast("ディレクター名は必須です");$("director").focus();return;}
+    const id=curId||uid();const record={id,data:snapshot()};
+    if(isCloud()){
+      try{$("saveBtn").disabled=true;toast("シートに保存中…");await apiPost({type:"order",record});}
+      catch(e){alert("保存失敗: "+e.message);$("saveBtn").disabled=false;return;}
+      $("saveBtn").disabled=false;
+    }
+    const ex=orders.find(o=>o.id===id);if(ex)ex.data=record.data;else orders.unshift(record);
+    curId=id;cacheLocal();renderAll();toast("保存しました"+(isCloud()?"（全員共有）":"（ローカル）"));
+  };
+  $("newBtn").onclick=()=>{
+    if(confirm("入力をクリアして新規発注にしますか？")){curId=null;document.querySelector('.tab[data-tab="order"]').click();
+      applyData({toName:$("toName").value||"平野 嵩大",greeting:$("greeting").value||"お願いします！",orderDate:todayStr()});window.scrollTo(0,0);}
+  };
+  $("reloadBtn").onclick=()=>{if(isCloud())refreshFromCloud();else toast("共有OFF。⚙共有設定でシートに接続してください");};
+  $("configBtn").onclick=async()=>{
+    const cur=gasUrl||"";
+    const v=prompt("Apps ScriptのウェブアプリURLを貼ってください（空欄＝共有OFFでローカル保存に戻す）\n\n例: https://script.google.com/macros/s/XXXX/exec",cur);
+    if(v===null)return;
+    gasUrl=v.trim();
+    if(gasUrl)localStorage.setItem(LS_URL,gasUrl);else localStorage.removeItem(LS_URL);
+    setStatus();
+    if(isCloud()){await refreshFromCloud();toast("シートに接続しました");}else{toast("共有OFF（ローカル保存）");renderAll();}
+  };
+  $("exportBtn").onclick=()=>{
+    const blob=new Blob([JSON.stringify({orders,master},null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="発注バックアップ.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast("書き出しました");
+  };
+  $("importBtn").onclick=()=>$("importFile").click();
+  $("importFile").onchange=e=>{
+    const f=e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.orders))throw new Error("形式不正");
+      if(!confirm(`発注${d.orders.length}件を読み込みます。現在のデータに追加しますか？（ローカルのみ。共有シートには反映されません）`))return;
+      orders=[...d.orders,...orders];if(Array.isArray(d.master)&&d.master.length)master=d.master;cacheLocal();renderAll();toast("読み込みました");
+    }catch(err){alert("読み込み失敗: "+err.message);}};
+    r.readAsText(f);e.target.value="";
+  };
+
+  // ---------- 起動 ----------
+  loadLocal();seedMaster();
+  setStatus();
+  $("repMonth").value=todayStr().slice(0,7);
+  applyData({toName:"平野 嵩大",greeting:"お願いします！",orderDate:todayStr()});
+  renderAll();
+  if(isCloud())refreshFromCloud(true);
+})();
+</script>
+</body>
+</html>
