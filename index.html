@@ -208,8 +208,12 @@
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
   function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 
+  // ▼▼▼ 公開用：ここに自分のウェブアプリURL（.../exec）を入れると、全員 設定不要で共有接続されます ▼▼▼
+  const DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbxiEpFunDcr58TBot_btLYYAQUhIoyBB2KDz4mAIMWtRVNV1oi7RnFpwFhPy5ISwyy9/exec";
+  // ▲▲▲ ここだけ書き換えればOK ▲▲▲
+
   let orders=[], master=[], curId=null;
-  let gasUrl=localStorage.getItem(LS_URL)||"";
+  let gasUrl=localStorage.getItem(LS_URL)||DEFAULT_GAS_URL;
   const isCloud=()=>!!gasUrl;
 
   // ---------- クラウド通信 ----------
