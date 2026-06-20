@@ -200,6 +200,10 @@
   <div class="panel" style="max-width:720px">
     <h2>🏷 品目マスタ（単価設定）</h2>
     <p class="hint" style="margin-top:0">単価を登録すると、発注作成で品名を選んだとき自動で金額計算されます。保存すると全員に共有されます。</p>
+    <div class="setup-box" id="masterLock" style="display:flex;align-items:center;gap:10px;background:#eff6ff;border-color:#bfdbfe">
+      <span id="lockMsg">🔒 閲覧のみ（編集は管理者だけ）</span>
+      <button class="btn-sm" id="unlockBtn" style="margin-left:auto">管理者として編集</button>
+    </div>
     <div class="item-head" style="grid-template-columns:1fr 120px 90px 28px">
       <div>品名</div><div class="num">単価(円)</div><div>単位</div><div></div>
     </div>
@@ -245,8 +249,8 @@
   const DEFAULT_GAS_URL="https://script.google.com/macros/s/AKfycbxiEpFunDcr58TBot_btLYYAQUhIoyBB2KDz4mAIMWtRVNV1oi7RnFpwFhPy5ISwyy9/exec";
   // ▲▲▲ ここだけ書き換えればOK ▲▲▲
 
-  const LS_PROFILE="hatchu_profile";
-  let orders=[], master=[], curId=null, hotels={}, lastZip="";
+  const LS_PROFILE="hatchu_profile", LS_ADMIN="hatchu_admin", ADMIN_PIN="takapiro1234";
+  let orders=[], master=[], curId=null, hotels={}, lastZip="", isAdmin=localStorage.getItem(LS_ADMIN)==="1";
   let gasUrl=localStorage.getItem(LS_URL)||DEFAULT_GAS_URL;
   const isCloud=()=>!!gasUrl;
 
@@ -419,7 +423,22 @@
   };}
 
   // ---------- マスタ画面 ----------
-  function renderMaster(){const w=$("masterRows");w.innerHTML="";(master.length?master:[{}]).forEach(m=>addMasterRow(m));}
+  function renderMaster(){const w=$("masterRows");w.innerHTML="";(master.length?master:[{}]).forEach(m=>addMasterRow(m));applyLockUI();}
+  function applyLockUI(){
+    const ro=!isAdmin;
+    $("masterRows").querySelectorAll("input").forEach(i=>i.disabled=ro);
+    $("masterRows").querySelectorAll(".rm").forEach(b=>b.style.display=ro?"none":"");
+    $("addMaster").style.display=ro?"none":"";
+    $("saveMaster").style.display=ro?"none":"";
+    $("lockMsg").textContent=isAdmin?"🔓 管理者モード（編集できます）":"🔒 閲覧のみ（編集は管理者だけ）";
+    $("unlockBtn").textContent=isAdmin?"ロックする":"管理者として編集";
+  }
+  $("unlockBtn").onclick=()=>{
+    if(isAdmin){isAdmin=false;localStorage.removeItem(LS_ADMIN);toast("ロックしました");}
+    else{const v=prompt("管理者PINを入力してください");if(v===null)return;
+      if(v===ADMIN_PIN){isAdmin=true;localStorage.setItem(LS_ADMIN,"1");toast("管理者モードON");}else{alert("PINが違います");return;}}
+    applyLockUI();
+  };
   function addMasterRow(m){
     m=m||{};
     const row=document.createElement("div");row.className="item-row";row.style.gridTemplateColumns="1fr 120px 90px 28px";
@@ -433,6 +452,7 @@
   }
   $("addMaster").onclick=()=>addMasterRow().querySelector(".m-name").focus();
   $("saveMaster").onclick=async()=>{
+    if(!isAdmin){toast("管理者だけが保存できます");return;}
     const newMaster=[...$("masterRows").children].map(r=>({name:r.querySelector(".m-name").value.trim(),price:num(r.querySelector(".m-price").value),unit:r.querySelector(".m-unit").value.trim()})).filter(m=>m.name);
     if(isCloud()){try{$("saveMaster").disabled=true;toast("保存中…");await apiPost({type:"master",master:newMaster});}catch(e){alert("保存失敗: "+e.message);$("saveMaster").disabled=false;return;}$("saveMaster").disabled=false;}
     master=newMaster;cacheLocal();refreshItemNameList();renderQuickChips();toast("マスタを保存しました"+(isCloud()?"（共有）":""));
