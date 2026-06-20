@@ -64,6 +64,9 @@
   .saved-item .meta .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .saved-item .meta .s{font-size:12px;color:var(--muted)}
   .saved-item .amt{font-weight:800;color:var(--accent);white-space:nowrap}
+  .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;vertical-align:middle}
+  .pill-warn{background:#fde68a;color:#92400e}
+  .pill-ok{background:#dcfce7;color:#166534}
   .empty{text-align:center;color:var(--muted);padding:24px 0;font-size:13px}
   table{width:100%;border-collapse:collapse}
   th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
@@ -145,15 +148,21 @@
       </div>
       <div class="grid2">
         <div class="field"><label>ディレクター名 <span class="req">*必須</span></label><input id="director" list="dirList" placeholder="例: 菊地耕大"></div>
-        <div class="field"><label>発注日（集計の基準）</label><input id="orderDate" type="date"></div>
+        <div class="field"><label>エリア</label><select id="area">
+          <option value="">（未設定）</option>
+          <option>首都圏エリア</option>
+          <option>関信越エリア</option>
+          <option>九州エリア</option>
+        </select></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>次回現場名</label><input id="site" placeholder="例: イオンモール福津"></div>
+        <div class="field"><label>発注日（集計の基準）</label><input id="orderDate" type="date"></div>
         <div class="field"><label>現地着希望日</label><input id="arrive" placeholder="例: 6/23"></div>
       </div>
+      <div class="field"><label>次回現場名</label><input id="site" placeholder="例: イオンモール福津"></div>
       <div class="grid2">
         <div class="field"><label>依頼者</label><input id="requester" placeholder="例: 菊地耕大"></div>
-        <div class="field"><label>ホテル受け取り者</label><input id="receiver" placeholder="例: キクチコウダイ"></div>
+        <div class="field"><label>ホテル受け取り者 <button type="button" class="btn-sm" id="copyReq" style="padding:2px 7px;font-size:11px">↑依頼者をコピー</button></label><input id="receiver" placeholder="例: キクチコウダイ"></div>
       </div>
     </div>
 
@@ -190,6 +199,7 @@
     </div>
     <div class="panel">
       <h2>🗂 履歴（全員共有）</h2>
+      <label class="hint" style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><input type="checkbox" id="filterPending" style="width:auto"> 未発注だけ表示</label>
       <div id="savedList"></div>
     </div>
   </div>
@@ -218,7 +228,9 @@
   <div class="panel">
     <div class="toolbar">
       <h2 style="margin:0">📊 集計</h2>
-      <label class="hint" style="margin-left:auto">対象月</label>
+      <label class="hint" style="margin-left:auto">エリア</label>
+      <select id="repArea" style="width:auto"><option value="">全エリア</option><option>首都圏エリア</option><option>関信越エリア</option><option>九州エリア</option><option value="(未設定)">未設定</option></select>
+      <label class="hint">対象月</label>
       <input type="month" id="repMonth" style="width:auto">
       <button class="btn-sm" id="repAll">全期間</button>
       <button class="btn-sm" id="repCsv">CSV書出</button>
@@ -236,7 +248,7 @@
 (function(){
   "use strict";
   const LS_ORDERS="hatchu_orders_cache", LS_MASTER="hatchu_master_cache", LS_URL="hatchu_gas_url";
-  const FIELDS=["toName","greeting","director","orderDate","site","arrive","requester","receiver","hotelName","hotelZip","hotelTel","hotelAddr"];
+  const FIELDS=["toName","greeting","director","area","orderDate","site","arrive","requester","receiver","hotelName","hotelZip","hotelTel","hotelAddr"];
   const $=id=>document.getElementById(id);
   const yen=n=>"¥"+(Math.round(Number(n)||0)).toLocaleString("ja-JP");
   const num=v=>{const n=Number(String(v).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;};
@@ -378,22 +390,39 @@
   }
 
   // ---------- 履歴リスト ----------
+  function isDone(s){return (s.data.status||"未発注")==="発注済";}
   function renderSaved(){
     const w=$("savedList");
     if(!orders.length){w.innerHTML=`<div class="empty">${isCloud()?"履歴はまだありません。":"共有OFF。右上「⚙共有設定」でGoogleシートに接続すると全員で履歴を共有できます。"}</div>`;return;}
-    w.innerHTML=orders.map(s=>`<div class="saved-item">
+    const pendingOnly=$("filterPending")&&$("filterPending").checked;
+    let list=orders.slice();
+    if(pendingOnly)list=list.filter(s=>!isDone(s));
+    if(!list.length){w.innerHTML=`<div class="empty">未発注の発注はありません。</div>`;return;}
+    w.innerHTML=list.map(s=>{
+      const done=isDone(s);
+      return `<div class="saved-item">
       <div class="meta">
-        <div class="t">${esc(s.data.site||s.data.director||"(無題)")}</div>
-        <div class="s">${esc(s.data.director||"")}${s.data.orderDate?" / "+esc(s.data.orderDate):""}${s.data.items?.length?" / "+s.data.items.length+"品":""}</div>
+        <div class="t">${done?'<span class="pill pill-ok">発注済</span> ':'<span class="pill pill-warn">未発注</span> '}${esc(s.data.site||s.data.director||"(無題)")}</div>
+        <div class="s">${esc(s.data.director||"")}${s.data.area?" / "+esc(s.data.area):""}${s.data.orderDate?" / "+esc(s.data.orderDate):""}${s.data.items?.length?" / "+s.data.items.length+"品":""}</div>
       </div>
       <div class="amt">${yen(orderTotal(s.data.items||[]))}</div>
+      <button class="btn-sm" data-status="${s.id}">${done?"未発注へ":"✓発注済へ"}</button>
       <button class="btn-sm" data-load="${s.id}">開く</button>
       <button class="btn-sm" data-dup="${s.id}">複製</button>
       <button class="btn-sm btn-danger" data-del="${s.id}">削除</button>
-    </div>`).join("");
+    </div>`;}).join("");
+    w.querySelectorAll("[data-status]").forEach(b=>b.onclick=()=>toggleStatus(b.dataset.status));
     w.querySelectorAll("[data-load]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.load);curId=s.id;applyData(s.data);document.querySelector('.tab[data-tab="order"]').click();toast("読み込みました");window.scrollTo(0,0);});
-    w.querySelectorAll("[data-dup]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.dup);curId=null;const c=JSON.parse(JSON.stringify(s.data));c.orderDate=todayStr();applyData(c);document.querySelector('.tab[data-tab="order"]').click();toast("複製しました（保存で新規追加）");window.scrollTo(0,0);});
+    w.querySelectorAll("[data-dup]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.dup);curId=null;const c=JSON.parse(JSON.stringify(s.data));c.orderDate=todayStr();delete c.status;applyData(c);document.querySelector('.tab[data-tab="order"]').click();toast("複製しました（保存で新規追加）");window.scrollTo(0,0);});
     w.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delOrder(b.dataset.del));
+  }
+  async function toggleStatus(id){
+    const s=orders.find(x=>x.id===id);if(!s)return;
+    const was=s.data.status||"未発注";
+    s.data.status=was==="発注済"?"未発注":"発注済";
+    if(isCloud()){try{toast("更新中…");await apiPost({type:"order",record:{id:s.id,data:s.data}});}
+      catch(e){s.data.status=was;alert("更新失敗: "+e.message);return;}}
+    cacheLocal();renderSaved();toast(s.data.status+"にしました");
   }
   async function delOrder(id){
     const s=orders.find(x=>x.id===id);if(!s)return;
@@ -415,11 +444,12 @@
   function loadProfile(){try{return JSON.parse(localStorage.getItem(LS_PROFILE))||{};}catch(e){return{};}}
   function saveProfile(){localStorage.setItem(LS_PROFILE,JSON.stringify({
     director:$("director").value.trim(),requester:$("requester").value.trim(),
-    receiver:$("receiver").value.trim(),toName:$("toName").value.trim(),greeting:$("greeting").value.trim()
+    receiver:$("receiver").value.trim(),toName:$("toName").value.trim(),greeting:$("greeting").value.trim(),
+    area:$("area").value
   }));}
   function freshData(){const p=loadProfile();return{
     toName:p.toName||"平野 嵩大",greeting:p.greeting||"お願いします！",
-    director:p.director||"",requester:p.requester||"",receiver:p.receiver||"",orderDate:todayStr()
+    director:p.director||"",requester:p.requester||"",receiver:p.receiver||"",area:p.area||"",orderDate:todayStr()
   };}
 
   // ---------- マスタ画面 ----------
@@ -460,16 +490,27 @@
 
   // ---------- 集計 ----------
   function ymOf(d){return (d||"").slice(0,7);}
-  function currentReportOrders(){const m=$("repMonth").value;return orders.filter(o=>!m||ymOf(o.data.orderDate)===m);}
+  function areaOf(o){return o.data.area||"(未設定)";}
+  function currentReportOrders(){const m=$("repMonth").value;const a=$("repArea")?$("repArea").value:"";return orders.filter(o=>(!m||ymOf(o.data.orderDate)===m)&&(!a||areaOf(o)===a));}
   function renderReport(){
     const list=currentReportOrders();const body=$("reportBody");
     if(!list.length){body.innerHTML=`<div class="empty">対象期間の発注がありません。</div>`;return;}
+    // エリア別 合計
+    const byArea={};
+    list.forEach(o=>{const a=areaOf(o);byArea[a]=byArea[a]||{total:0,count:0};byArea[a].count++;(o.data.items||[]).forEach(it=>byArea[a].total+=num(it.qty)*num(it.price));});
+    const areas=Object.keys(byArea).sort((x,y)=>byArea[y].total-byArea[x].total);
+    const areaGrand=areas.reduce((s,a)=>s+byArea[a].total,0);
+    let html=`<h2 style="margin:0 0 10px">🗺 エリア別 合計</h2>`;
+    html+=`<table><thead><tr><th>エリア</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
+    html+=areas.map(a=>`<tr><td>${esc(a)}</td><td class="r">${byArea[a].count}件</td><td class="r"><strong>${yen(byArea[a].total)}</strong></td></tr>`).join("");
+    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}件</td><td class="r">${yen(areaGrand)}</td></tr></tfoot></table>`;
+    html+=`<h2 style="margin:22px 0 10px">👤 ディレクター別 合計</h2>`;
     const byDir={};
     list.forEach(o=>{const d=o.data.director||"(未設定)";byDir[d]=byDir[d]||{total:0,count:0,items:{}};byDir[d].count++;
       (o.data.items||[]).forEach(it=>{const amt=num(it.qty)*num(it.price);byDir[d].total+=amt;if(it.name){const e=byDir[d].items[it.name]=byDir[d].items[it.name]||{qty:0,amt:0};e.qty+=num(it.qty);e.amt+=amt;}});});
     const dirs=Object.keys(byDir).sort((a,b)=>byDir[b].total-byDir[a].total);
     const grand=dirs.reduce((s,d)=>s+byDir[d].total,0);
-    let html=`<table><thead><tr><th>ディレクター</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
+    html+=`<table><thead><tr><th>ディレクター</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
     html+=dirs.map(d=>`<tr><td>${esc(d)}</td><td class="r">${byDir[d].count}件</td><td class="r"><strong>${yen(byDir[d].total)}</strong></td></tr>`).join("");
     html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}件</td><td class="r">${yen(grand)}</td></tr></tfoot></table>`;
     html+=`<h2 style="margin:22px 0 10px">品目別の内訳（ディレクター別）</h2>`;
@@ -482,11 +523,12 @@
     body.innerHTML=html;
   }
   $("repMonth").onchange=renderReport;
+  $("repArea").onchange=renderReport;
   $("repAll").onclick=()=>{$("repMonth").value="";renderReport();};
   $("repCsv").onclick=()=>{
     const list=currentReportOrders();if(!list.length){toast("対象データがありません");return;}
-    const rows=[["発注日","ディレクター","現場","品名","数量","単位","単価","金額"]];
-    list.forEach(o=>(o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.director||"",o.data.site||"",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price)])));
+    const rows=[["発注日","エリア","ディレクター","現場","品名","数量","単位","単価","金額","状態"]];
+    list.forEach(o=>(o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"])));
     const csv=rows.map(r=>r.map(c=>{c=String(c??"");return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(",")).join("\r\n");
     const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="発注集計.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -506,6 +548,7 @@
 
   // ---------- 保存・各種ボタン ----------
   FIELDS.forEach(f=>$(f).addEventListener("input",renderPreview));
+  $("copyReq").onclick=()=>{$("receiver").value=$("requester").value;renderPreview();toast("受取者に依頼者をコピーしました");};
   // ホテル名を選ぶと住所など自動（空欄のみ補完）
   $("hotelName").addEventListener("input",()=>{
     const h=hotels[$("hotelName").value.trim()];if(!h)return;
@@ -527,6 +570,7 @@
       }
     }catch(e){}
   });
+  $("filterPending").onchange=renderSaved;
   $("addItem").onclick=()=>addItemRow().querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
     try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
