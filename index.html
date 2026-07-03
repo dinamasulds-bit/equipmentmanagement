@@ -76,6 +76,16 @@
   .saved-item .meta .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .saved-item .meta .s{font-size:12px;color:var(--muted)}
   .saved-item .amt{font-weight:800;color:var(--accent);white-space:nowrap}
+  .hist-card{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:#fff;transition:box-shadow .15s ease,transform .1s ease}
+  .hist-card:hover{box-shadow:0 6px 18px rgba(30,41,59,.1);transform:translateY(-1px)}
+  .hist-card .main{flex:1;min-width:0}
+  .hist-card .ttl{font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .hist-card .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .hist-card .items{font-size:12px;color:#475569;margin-top:8px;background:#f8fafc;border:1px solid #eef2f7;border-radius:9px;padding:7px 10px}
+  .hist-card .side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;white-space:nowrap}
+  .hist-card .amt2{font-weight:800;font-size:18px;background:var(--cta-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hist-card .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  @media(max-width:600px){.hist-card{flex-direction:column}.hist-card .side{flex-direction:row;align-items:center;width:100%;justify-content:space-between}.hist-card .acts{justify-content:flex-start}}
   .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;vertical-align:middle}
   .pill-warn{background:#fde68a;color:#92400e}
   .pill-ok{background:#dcfce7;color:#166534}
@@ -146,6 +156,7 @@
 <div class="tabs">
   <button class="tab active" data-tab="order">発注作成</button>
   <button class="tab" data-tab="master">品目マスタ（単価）</button>
+  <button class="tab" data-tab="history">履歴</button>
   <button class="tab" data-tab="report">集計</button>
 </div>
 
@@ -209,10 +220,8 @@
         <button id="saveBtn">💾 保存</button>
       </div>
     </div>
-    <div class="panel">
-      <h2>🗂 履歴（全員共有）</h2>
-      <label class="hint" style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><input type="checkbox" id="filterPending" style="width:auto"> 未発注だけ表示</label>
-      <div id="savedList"></div>
+    <div class="panel" style="text-align:center">
+      <button id="gotoHistory" class="btn-block">🗂 発注履歴を見る（全員共有）</button>
     </div>
   </div>
 </div></section>
@@ -232,6 +241,22 @@
     <div id="masterRows"></div>
     <button class="btn-sm" id="addMaster" style="margin-top:8px">＋ 品目を追加</button>
     <div style="margin-top:14px"><button class="btn-primary" id="saveMaster">💾 マスタを保存</button></div>
+  </div>
+</div></section>
+
+<!-- ============ 履歴 ============ -->
+<section id="tab-history" style="display:none"><div class="wrap">
+  <div class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0">🗂 発注履歴（全員共有）</h2>
+      <span id="histSummary" class="hint" style="margin-left:auto"></span>
+    </div>
+    <div class="toolbar">
+      <input id="histSearch" placeholder="🔍 現場・ディレクター・ホテルで検索" style="flex:1;min-width:180px">
+      <select id="histArea" style="width:auto"><option value="">全エリア</option><option>首都圏エリア</option><option>関信越エリア</option><option>九州エリア</option><option value="(未設定)">未設定</option></select>
+      <label class="hint" style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="filterPending" style="width:auto"> 未発注のみ</label>
+    </div>
+    <div id="savedList"></div>
   </div>
 </div></section>
 
@@ -337,8 +362,10 @@
       const id=tab.dataset.tab;
       $("tab-order").style.display=id==="order"?"":"none";
       $("tab-master").style.display=id==="master"?"":"none";
+      $("tab-history").style.display=id==="history"?"":"none";
       $("tab-report").style.display=id==="report"?"":"none";
       if(id==="master")renderMaster();
+      if(id==="history")renderSaved();
       if(id==="report")renderReport();
     };
   });
@@ -409,24 +436,37 @@
   // ---------- 履歴リスト ----------
   function isDone(s){return (s.data.status||"未発注")==="発注済";}
   function renderSaved(){
-    const w=$("savedList");
-    if(!orders.length){w.innerHTML=`<div class="empty">${isCloud()?"履歴はまだありません。":"共有OFF。右上「⚙共有設定」でGoogleシートに接続すると全員で履歴を共有できます。"}</div>`;return;}
+    const w=$("savedList");if(!w)return;
+    if(!orders.length){w.innerHTML=`<div class="empty">${isCloud()?"履歴はまだありません。":"共有OFF。右上「⚙共有設定」でGoogleシートに接続すると全員で履歴を共有できます。"}</div>`;if($("histSummary"))$("histSummary").textContent="";return;}
+    const q=($("histSearch")?$("histSearch").value:"").trim().toLowerCase();
+    const area=$("histArea")?$("histArea").value:"";
     const pendingOnly=$("filterPending")&&$("filterPending").checked;
     let list=orders.slice();
     if(pendingOnly)list=list.filter(s=>!isDone(s));
-    if(!list.length){w.innerHTML=`<div class="empty">未発注の発注はありません。</div>`;return;}
+    if(area)list=list.filter(s=>(s.data.area||"(未設定)")===area);
+    if(q)list=list.filter(s=>((s.data.site||"")+" "+(s.data.director||"")+" "+(s.data.hotelName||"")+" "+(s.data.requester||"")).toLowerCase().includes(q));
+    const total=list.reduce((sm,s)=>sm+orderTotal(s.data.items||[]),0);
+    if($("histSummary"))$("histSummary").textContent=`${list.length}件 ・ 合計 ${yen(total)}`;
+    if(!list.length){w.innerHTML=`<div class="empty">条件に合う発注がありません。</div>`;return;}
     w.innerHTML=list.map(s=>{
-      const done=isDone(s);
-      return `<div class="saved-item">
-      <div class="meta">
-        <div class="t">${done?'<span class="pill pill-ok">発注済</span> ':'<span class="pill pill-warn">未発注</span> '}${esc(s.data.site||s.data.director||"(無題)")}</div>
-        <div class="s">${esc(s.data.director||"")}${s.data.area?" / "+esc(s.data.area):""}${s.data.orderDate?" / "+esc(s.data.orderDate):""}${s.data.items?.length?" / "+s.data.items.length+"品":""}</div>
+      const done=isDone(s),its=s.data.items||[];
+      const names=its.map(i=>i.name).filter(Boolean);
+      const preview=names.length?esc(names.slice(0,4).join("、"))+(names.length>4?` 他${names.length-4}件`:""):"（品目なし）";
+      return `<div class="hist-card">
+      <div class="main">
+        <div class="ttl">${done?'<span class="pill pill-ok">発注済</span>':'<span class="pill pill-warn">未発注</span>'}${esc(s.data.site||s.data.director||"(無題)")}</div>
+        <div class="sub">👤 ${esc(s.data.director||"-")}${s.data.area?" ・ 🗺 "+esc(s.data.area):""}${s.data.orderDate?" ・ 🗓 "+esc(s.data.orderDate):""}${s.data.arrive?" ・ 着 "+esc(fmtMD(s.data.arrive)):""}${s.data.hotelName?"<br>🏨 "+esc(s.data.hotelName):""}</div>
+        <div class="items">📦 ${preview}</div>
       </div>
-      <div class="amt">${yen(orderTotal(s.data.items||[]))}</div>
-      <button class="btn-sm" data-status="${s.id}">${done?"未発注へ":"✓発注済へ"}</button>
-      <button class="btn-sm" data-load="${s.id}">開く</button>
-      <button class="btn-sm" data-dup="${s.id}">複製</button>
-      <button class="btn-sm btn-danger" data-del="${s.id}">削除</button>
+      <div class="side">
+        <div class="amt2">${yen(orderTotal(its))}</div>
+        <div class="acts">
+          <button class="btn-sm" data-status="${s.id}">${done?"未発注へ":"✓発注済"}</button>
+          <button class="btn-sm" data-load="${s.id}">開く</button>
+          <button class="btn-sm" data-dup="${s.id}">複製</button>
+          <button class="btn-sm btn-danger" data-del="${s.id}">削除</button>
+        </div>
+      </div>
     </div>`;}).join("");
     w.querySelectorAll("[data-status]").forEach(b=>b.onclick=()=>toggleStatus(b.dataset.status));
     w.querySelectorAll("[data-load]").forEach(b=>b.onclick=()=>{const s=orders.find(x=>x.id===b.dataset.load);curId=s.id;applyData(s.data);document.querySelector('.tab[data-tab="order"]').click();toast("読み込みました");window.scrollTo(0,0);});
@@ -631,6 +671,9 @@
     }catch(e){}
   });
   $("filterPending").onchange=renderSaved;
+  $("histSearch").addEventListener("input",renderSaved);
+  $("histArea").onchange=renderSaved;
+  $("gotoHistory").onclick=()=>{document.querySelector('.tab[data-tab="history"]').click();window.scrollTo(0,0);};
   $("addItem").onclick=()=>addItemRow().querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
     try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
