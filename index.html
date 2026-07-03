@@ -86,6 +86,11 @@
   .hist-card .amt2{font-weight:800;font-size:18px;background:var(--cta-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hist-card .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
   @media(max-width:600px){.hist-card{flex-direction:column}.hist-card .side{flex-direction:row;align-items:center;width:100%;justify-content:space-between}.hist-card .acts{justify-content:flex-start}}
+  .sumcard{flex:1;min-width:110px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px 15px;box-shadow:0 4px 14px rgba(30,41,59,.06)}
+  .sumcard .l{font-size:12px;color:var(--muted);font-weight:600}
+  .sumcard .v{font-size:20px;font-weight:800;margin-top:2px}
+  .sumcard.hl{background:var(--cta-grad);color:#fff;border:none;box-shadow:0 6px 16px rgba(236,72,153,.3)}
+  .sumcard.hl .l{color:rgba(255,255,255,.9)}
   .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;vertical-align:middle}
   .pill-warn{background:#fde68a;color:#92400e}
   .pill-ok{background:#dcfce7;color:#166534}
@@ -109,17 +114,24 @@
   /* ===== スマホ最適化 ===== */
   @media(max-width:600px){
     .wrap{padding:12px}
-    .panel{padding:14px}
-    header{padding:10px 12px;gap:8px}
-    header h1{font-size:15px}
+    .panel{padding:16px;border-radius:18px;margin-bottom:14px}
+    .panel h2{font-size:15px}
+    header{padding:12px 14px;gap:8px}
+    header h1{font-size:16px}
     .status{font-size:11px}
     .header-actions{gap:6px}
-    .header-actions button{padding:7px 9px;font-size:12px}
-    .tab{padding:11px 14px;font-size:15px}
+    .header-actions button{padding:7px 10px;font-size:12px;border-radius:10px}
+    /* タブは横スクロールで崩れ防止 */
+    .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;top:58px}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{padding:12px 16px;font-size:15px;white-space:nowrap;flex:0 0 auto}
     .grid2{grid-template-columns:1fr}            /* 2列→1列で各欄を広く */
     input,select,textarea{font-size:16px}        /* iOSの自動ズーム防止 */
     .preview-wrap{position:static}
-    .preview{max-height:none}
+    .preview{max-height:none;border-radius:14px}
+    .total-amt{font-size:24px}
+    .sumcard{min-width:0;padding:12px}
+    .sumcard .v{font-size:18px}
 
     /* 品目を1枚のカードに */
     .item-head{display:none}
@@ -207,7 +219,17 @@
       <button class="btn-sm btn-block" id="addItem" style="margin-top:6px">＋ 品目を追加</button>
       <div class="hint">品名を入力/選択すると単価マスタから自動入力。単価はその場で上書き可。URLや「何でもいい」等もそのまま品名に書けます（単価0で金額に含まれません）。</div>
       <div class="chips" id="quickChips"></div>
-      <div style="text-align:right;margin-top:12px">合計金額 <span class="total-amt" id="orderTotal">¥0</span></div>
+      <div style="text-align:right;margin-top:12px">発注分 合計 <span class="total-amt" id="orderTotal">¥0</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>🚪 押入れ出し分（在庫から持出）</h2>
+      <div class="item-head"><div>品名</div><div class="num">数量</div><div>単位</div><div class="num">単価</div><div class="num">小計</div><div></div></div>
+      <div id="closetItems"></div>
+      <button class="btn-sm btn-block" id="addCloset" style="margin-top:6px">＋ 品目を追加</button>
+      <div class="hint">押入れ（在庫）から現場へ持って行った分。発注はしないが金額として集計されます。</div>
+      <div class="chips" id="closetChips"></div>
+      <div style="text-align:right;margin-top:12px">押入れ出し 合計 <span class="total-amt" id="closetTotal">¥0</span></div>
     </div>
   </div>
 
@@ -371,8 +393,8 @@
   });
 
   // ---------- 品目行 ----------
-  function addItemRow(it){
-    it=it||{};
+  function addItemRow(it,cid){
+    cid=cid||"items";it=it||{};
     const row=document.createElement("div");
     row.className="item-row";
     row.innerHTML=`<input class="i-name" list="itemNameList" placeholder="品名 / URL / メモ">
@@ -383,27 +405,30 @@
       <button class="rm" title="削除">×</button>`;
     const name=row.querySelector(".i-name"),qty=row.querySelector(".i-qty"),unit=row.querySelector(".i-unit"),price=row.querySelector(".i-price"),sub=row.querySelector(".sub");
     name.value=it.name||"";qty.value=it.qty??"";unit.value=it.unit||"";price.value=it.price??"";
-    function recalc(){sub.textContent=yen(num(qty.value)*num(price.value));renderTotalAndPreview();}
+    function recalc(){sub.textContent=yen(num(qty.value)*num(price.value));recalcAll();}
     name.addEventListener("input",()=>{const m=masterByName(name.value);if(m){if(!price.value)price.value=m.price||"";if(!unit.value&&m.unit)unit.value=m.unit;}recalc();});
     qty.addEventListener("input",recalc);
     price.addEventListener("input",recalc);
     unit.addEventListener("input",renderPreview);
-    qty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();const r=addItemRow();r.querySelector(".i-name").focus();}});
-    row.querySelector(".rm").onclick=()=>{row.remove();ensureRow();renderTotalAndPreview();};
-    $("items").appendChild(row);
+    qty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();const r=addItemRow(null,cid);r.querySelector(".i-name").focus();}});
+    row.querySelector(".rm").onclick=()=>{row.remove();ensureRow(cid);recalcAll();};
+    $(cid).appendChild(row);
     sub.textContent=yen(num(qty.value)*num(price.value));
     return row;
   }
-  function ensureRow(){if($("items").children.length===0)addItemRow();}
-  function getItems(){
-    return [...$("items").children].map(r=>({
+  function ensureRow(cid){cid=cid||"items";if($(cid).children.length===0)addItemRow(null,cid);}
+  function getRows(cid){
+    return [...$(cid).children].map(r=>({
       name:r.querySelector(".i-name").value.trim(),
       qty:r.querySelector(".i-qty").value.trim(),
       unit:r.querySelector(".i-unit").value.trim(),
       price:r.querySelector(".i-price").value.trim()
     })).filter(it=>it.name||it.qty||it.price);
   }
+  function getItems(){return getRows("items");}
+  function getCloset(){return getRows("closetItems");}
   function orderTotal(items){return items.reduce((s,it)=>s+num(it.qty)*num(it.price),0);}
+  function recalcAll(){$("orderTotal").textContent=yen(orderTotal(getItems()));$("closetTotal").textContent=yen(orderTotal(getCloset()));renderPreview();}
 
   // ---------- テキスト ----------
   function itemLine(it){const q=it.qty?("×"+it.qty+(it.unit||"")):"";if(!it.name)return "・"+(it.qty||"")+(it.unit||"");return "・"+it.name+q;}
@@ -417,20 +442,21 @@
     L.push("現地着希望日:"+fmtMD(v("arrive")));L.push("ホテル電話番号:"+v("hotelTel"));L.push("※ホテルに直接発注する場合のみ記載");L.push("");
     L.push("【発注分】");
     const items=getItems();if(items.length)items.forEach(it=>L.push(itemLine(it)));else L.push("・");
+    const closet=getCloset();
+    if(closet.length){L.push("");L.push("【押入れ出し分（在庫使用・発注不要）】");closet.forEach(it=>L.push(itemLine(it)));}
     return L.join("\n");
   }
   function renderPreview(){$("preview").textContent=buildText();scheduleDraft();}
   function scheduleDraft(){clearTimeout(draftT);draftT=setTimeout(saveDraft,400);}
   function saveDraft(){if(curId)return;const d=snapshot();if(d.director||d.site||(d.items&&d.items.length))localStorage.setItem(LS_DRAFT,JSON.stringify(d));}
   function clearDraft(){localStorage.removeItem(LS_DRAFT);}
-  function renderTotalAndPreview(){$("orderTotal").textContent=yen(orderTotal(getItems()));renderPreview();}
-
-  function snapshot(){const o={};FIELDS.forEach(f=>o[f]=$(f).value);o.items=getItems();return o;}
+  function snapshot(){const o={};FIELDS.forEach(f=>o[f]=$(f).value);o.items=getItems();o.closet=getCloset();return o;}
   function applyData(d){
     FIELDS.forEach(f=>$(f).value=d[f]||"");
     if(!$("orderDate").value)$("orderDate").value=todayStr();
-    $("items").innerHTML="";(d.items&&d.items.length?d.items:[{}]).forEach(addItemRow);
-    ensureRow();renderTotalAndPreview();
+    $("items").innerHTML="";(d.items&&d.items.length?d.items:[{}]).forEach(it=>addItemRow(it,"items"));
+    $("closetItems").innerHTML="";(d.closet&&d.closet.length?d.closet:[{}]).forEach(it=>addItemRow(it,"closetItems"));
+    ensureRow("items");ensureRow("closetItems");recalcAll();
   }
 
   // ---------- 履歴リスト ----------
@@ -445,21 +471,22 @@
     if(pendingOnly)list=list.filter(s=>!isDone(s));
     if(area)list=list.filter(s=>(s.data.area||"(未設定)")===area);
     if(q)list=list.filter(s=>((s.data.site||"")+" "+(s.data.director||"")+" "+(s.data.hotelName||"")+" "+(s.data.requester||"")).toLowerCase().includes(q));
-    const total=list.reduce((sm,s)=>sm+orderTotal(s.data.items||[]),0);
+    const previewOf=arr=>{const n=(arr||[]).map(i=>i.name).filter(Boolean);return n.length?esc(n.slice(0,4).join("、"))+(n.length>4?` 他${n.length-4}件`:""):"（品目なし）";};
+    const total=list.reduce((sm,s)=>sm+orderTotal(s.data.items||[])+orderTotal(s.data.closet||[]),0);
     if($("histSummary"))$("histSummary").textContent=`${list.length}件 ・ 合計 ${yen(total)}`;
     if(!list.length){w.innerHTML=`<div class="empty">条件に合う発注がありません。</div>`;return;}
     w.innerHTML=list.map(s=>{
-      const done=isDone(s),its=s.data.items||[];
-      const names=its.map(i=>i.name).filter(Boolean);
-      const preview=names.length?esc(names.slice(0,4).join("、"))+(names.length>4?` 他${names.length-4}件`:""):"（品目なし）";
+      const done=isDone(s),its=s.data.items||[],cl=s.data.closet||[];
+      const ot=orderTotal(its),ct=orderTotal(cl);
       return `<div class="hist-card">
       <div class="main">
         <div class="ttl">${done?'<span class="pill pill-ok">発注済</span>':'<span class="pill pill-warn">未発注</span>'}${esc(s.data.site||s.data.director||"(無題)")}</div>
         <div class="sub">👤 ${esc(s.data.director||"-")}${s.data.area?" ・ 🗺 "+esc(s.data.area):""}${s.data.orderDate?" ・ 🗓 "+esc(s.data.orderDate):""}${s.data.arrive?" ・ 着 "+esc(fmtMD(s.data.arrive)):""}${s.data.hotelName?"<br>🏨 "+esc(s.data.hotelName):""}</div>
-        <div class="items">📦 ${preview}</div>
+        <div class="items">📦 発注: ${previewOf(its)}${cl.length?`<br>🚪 押入れ: ${previewOf(cl)}`:""}</div>
       </div>
       <div class="side">
-        <div class="amt2">${yen(orderTotal(its))}</div>
+        <div class="amt2">${yen(ot+ct)}</div>
+        ${cl.length?`<div class="hint" style="margin:0">発注 ${yen(ot)} / 押入れ ${yen(ct)}</div>`:""}
         <div class="acts">
           <button class="btn-sm" data-status="${s.id}">${done?"未発注へ":"✓発注済"}</button>
           <button class="btn-sm" data-load="${s.id}">開く</button>
@@ -584,39 +611,45 @@
   function renderReport(){
     const list=currentReportOrders();const body=$("reportBody");
     if(!list.length){body.innerHTML=`<div class="empty">対象期間の発注がありません。</div>`;return;}
-    // エリア別 合計
+    const ot=o=>orderTotal(o.data.items||[]), ct=o=>orderTotal(o.data.closet||[]);
+    // エリア別（発注/押入れ）
     const byArea={};
-    list.forEach(o=>{const a=areaOf(o);byArea[a]=byArea[a]||{total:0,count:0};byArea[a].count++;(o.data.items||[]).forEach(it=>byArea[a].total+=num(it.qty)*num(it.price));});
-    const areas=Object.keys(byArea).sort((x,y)=>byArea[y].total-byArea[x].total);
-    const areaGrand=areas.reduce((s,a)=>s+byArea[a].total,0);
-    // 月推移（エリア絞り込み反映・直近8ヶ月）
+    list.forEach(o=>{const a=areaOf(o);byArea[a]=byArea[a]||{order:0,closet:0,count:0};byArea[a].count++;byArea[a].order+=ot(o);byArea[a].closet+=ct(o);});
+    const areas=Object.keys(byArea).sort((x,y)=>(byArea[y].order+byArea[y].closet)-(byArea[x].order+byArea[x].closet));
+    const gOrder=areas.reduce((s,a)=>s+byArea[a].order,0), gCloset=areas.reduce((s,a)=>s+byArea[a].closet,0);
+    // 月推移（総合計・エリア絞り込み反映・直近8ヶ月）
     const af=$("repArea")?$("repArea").value:"";
     const byMonth={};
-    orders.forEach(o=>{if(af&&areaOf(o)!==af)return;const m=ymOf(o.data.orderDate);if(!m)return;byMonth[m]=(byMonth[m]||0)+(o.data.items||[]).reduce((s,it)=>s+num(it.qty)*num(it.price),0);});
+    orders.forEach(o=>{if(af&&areaOf(o)!==af)return;const m=ymOf(o.data.orderDate);if(!m)return;byMonth[m]=(byMonth[m]||0)+ot(o)+ct(o);});
     const months=Object.keys(byMonth).sort().slice(-8);
-    let html=`<details style="background:#fafbfd"><summary style="font-size:14px;padding:4px 0">📊 グラフを表示（月推移・エリア比率）</summary><div style="padding-top:12px">`;
+    // 3数値サマリー
+    let html=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="sumcard"><div class="l">📦 発注分</div><div class="v">${yen(gOrder)}</div></div>
+      <div class="sumcard"><div class="l">🚪 押入れ出し</div><div class="v">${yen(gCloset)}</div></div>
+      <div class="sumcard hl"><div class="l">総合計</div><div class="v">${yen(gOrder+gCloset)}</div></div>
+    </div>`;
+    html+=`<details style="background:#fafbfd"><summary style="font-size:14px;padding:4px 0">📊 グラフを表示（月推移・エリア比率）</summary><div style="padding-top:12px">`;
     html+=`<h2 style="margin:0 0 10px">📈 月別 推移${af?"（"+esc(af)+"）":""}</h2>`;
     html+=svgBar(months.map(m=>({label:m.slice(5)+"月",value:byMonth[m]})));
-    html+=`<h2 style="margin:22px 0 10px">🥧 エリア比率</h2>`+svgPie(areas.map(a=>({label:a,value:byArea[a].total})));
+    html+=`<h2 style="margin:22px 0 10px">🥧 エリア比率（総合計）</h2>`+svgPie(areas.map(a=>({label:a,value:byArea[a].order+byArea[a].closet})));
     html+=`</div></details>`;
     html+=`<h2 style="margin:18px 0 10px">🗺 エリア別 合計</h2>`;
-    html+=`<table><thead><tr><th>エリア</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
-    html+=areas.map(a=>`<tr><td>${esc(a)}</td><td class="r">${byArea[a].count}件</td><td class="r"><strong>${yen(byArea[a].total)}</strong></td></tr>`).join("");
-    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}件</td><td class="r">${yen(areaGrand)}</td></tr></tfoot></table>`;
+    html+=`<table><thead><tr><th>エリア</th><th class="r">件数</th><th class="r">発注</th><th class="r">押入れ</th><th class="r">合計</th></tr></thead><tbody>`;
+    html+=areas.map(a=>`<tr><td>${esc(a)}</td><td class="r">${byArea[a].count}</td><td class="r">${yen(byArea[a].order)}</td><td class="r">${yen(byArea[a].closet)}</td><td class="r"><strong>${yen(byArea[a].order+byArea[a].closet)}</strong></td></tr>`).join("");
+    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}</td><td class="r">${yen(gOrder)}</td><td class="r">${yen(gCloset)}</td><td class="r">${yen(gOrder+gCloset)}</td></tr></tfoot></table>`;
     html+=`<h2 style="margin:22px 0 10px">👤 ディレクター別 合計</h2>`;
     const byDir={};
-    list.forEach(o=>{const d=o.data.director||"(未設定)";byDir[d]=byDir[d]||{total:0,count:0,items:{}};byDir[d].count++;
-      (o.data.items||[]).forEach(it=>{const amt=num(it.qty)*num(it.price);byDir[d].total+=amt;if(it.name){const e=byDir[d].items[it.name]=byDir[d].items[it.name]||{qty:0,amt:0};e.qty+=num(it.qty);e.amt+=amt;}});});
-    const dirs=Object.keys(byDir).sort((a,b)=>byDir[b].total-byDir[a].total);
-    const grand=dirs.reduce((s,d)=>s+byDir[d].total,0);
-    html+=`<table><thead><tr><th>ディレクター</th><th class="r">発注件数</th><th class="r">合計金額</th></tr></thead><tbody>`;
-    html+=dirs.map(d=>`<tr><td>${esc(d)}</td><td class="r">${byDir[d].count}件</td><td class="r"><strong>${yen(byDir[d].total)}</strong></td></tr>`).join("");
-    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}件</td><td class="r">${yen(grand)}</td></tr></tfoot></table>`;
-    html+=`<h2 style="margin:22px 0 10px">品目別の内訳（ディレクター別）</h2>`;
+    list.forEach(o=>{const d=o.data.director||"(未設定)";byDir[d]=byDir[d]||{order:0,closet:0,count:0,items:{}};byDir[d].count++;byDir[d].order+=ot(o);byDir[d].closet+=ct(o);
+      [].concat(o.data.items||[],o.data.closet||[]).forEach(it=>{const amt=num(it.qty)*num(it.price);if(it.name){const e=byDir[d].items[it.name]=byDir[d].items[it.name]||{qty:0,amt:0};e.qty+=num(it.qty);e.amt+=amt;}});});
+    const dirs=Object.keys(byDir).sort((a,b)=>(byDir[b].order+byDir[b].closet)-(byDir[a].order+byDir[a].closet));
+    html+=`<table><thead><tr><th>ディレクター</th><th class="r">件数</th><th class="r">発注</th><th class="r">押入れ</th><th class="r">合計</th></tr></thead><tbody>`;
+    html+=dirs.map(d=>`<tr><td>${esc(d)}</td><td class="r">${byDir[d].count}</td><td class="r">${yen(byDir[d].order)}</td><td class="r">${yen(byDir[d].closet)}</td><td class="r"><strong>${yen(byDir[d].order+byDir[d].closet)}</strong></td></tr>`).join("");
+    html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}</td><td class="r">${yen(gOrder)}</td><td class="r">${yen(gCloset)}</td><td class="r">${yen(gOrder+gCloset)}</td></tr></tfoot></table>`;
+    html+=`<h2 style="margin:22px 0 10px">品目別の内訳（発注＋押入れ / ディレクター別）</h2>`;
     html+=dirs.map(d=>{
       const items=Object.entries(byDir[d].items).sort((a,b)=>b[1].amt-a[1].amt);
       const rows=items.map(([n,e])=>`<tr><td>${esc(n)}</td><td class="r">${e.qty||""}</td><td class="r">${yen(e.amt)}</td></tr>`).join("")||`<tr><td colspan="3" class="empty" style="padding:10px">品目なし</td></tr>`;
-      return `<details><summary>${esc(d)} <span class="badge">${byDir[d].count}件</span><span class="amt">${yen(byDir[d].total)}</span></summary>
+      return `<details><summary>${esc(d)} <span class="badge">${byDir[d].count}件</span><span class="amt">${yen(byDir[d].order+byDir[d].closet)}</span></summary>
         <table style="margin-top:8px"><thead><tr><th>品名</th><th class="r">数量計</th><th class="r">金額</th></tr></thead><tbody>${rows}</tbody></table></details>`;
     }).join("");
     body.innerHTML=html;
@@ -626,24 +659,28 @@
   $("repAll").onclick=()=>{$("repMonth").value="";renderReport();};
   $("repCsv").onclick=()=>{
     const list=currentReportOrders();if(!list.length){toast("対象データがありません");return;}
-    const rows=[["発注日","エリア","ディレクター","現場","品名","数量","単位","単価","金額","状態"]];
-    list.forEach(o=>(o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"])));
+    const rows=[["発注日","エリア","ディレクター","現場","区分","品名","数量","単位","単価","金額","状態"]];
+    list.forEach(o=>{
+      (o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"","発注",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"]));
+      (o.data.closet||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"","押入れ",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"]));
+    });
     const csv=rows.map(r=>r.map(c=>{c=String(c??"");return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(",")).join("\r\n");
     const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="発注集計.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   };
 
   // ---------- quick chips ----------
-  function renderQuickChips(){
-    $("quickChips").innerHTML=master.slice(0,16).map(m=>`<button class="chip" data-q="${esc(m.name)}">+ ${esc(m.name)}</button>`).join("");
-    $("quickChips").querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{
-      const rows=[...$("items").children];const last=rows[rows.length-1];let target;
-      if(last&&!last.querySelector(".i-name").value&&!last.querySelector(".i-qty").value)target=last;else target=addItemRow();
+  function buildChips(chipId,targetId){
+    $(chipId).innerHTML=master.slice(0,16).map(m=>`<button class="chip" data-q="${esc(m.name)}">+ ${esc(m.name)}</button>`).join("");
+    $(chipId).querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{
+      const rows=[...$(targetId).children];const last=rows[rows.length-1];let target;
+      if(last&&!last.querySelector(".i-name").value&&!last.querySelector(".i-qty").value)target=last;else target=addItemRow(null,targetId);
       target.querySelector(".i-name").value=b.dataset.q;
       const m=masterByName(b.dataset.q);if(m){target.querySelector(".i-price").value=m.price||"";if(m.unit)target.querySelector(".i-unit").value=m.unit;}
       target.querySelector(".i-name").dispatchEvent(new Event("input"));
     });
   }
+  function renderQuickChips(){buildChips("quickChips","items");buildChips("closetChips","closetItems");}
 
   // ---------- 保存・各種ボタン ----------
   FIELDS.forEach(f=>$(f).addEventListener("input",renderPreview));
@@ -674,7 +711,8 @@
   $("histSearch").addEventListener("input",renderSaved);
   $("histArea").onchange=renderSaved;
   $("gotoHistory").onclick=()=>{document.querySelector('.tab[data-tab="history"]').click();window.scrollTo(0,0);};
-  $("addItem").onclick=()=>addItemRow().querySelector(".i-name").focus();
+  $("addItem").onclick=()=>addItemRow(null,"items").querySelector(".i-name").focus();
+  $("addCloset").onclick=()=>addItemRow(null,"closetItems").querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
     try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
     catch(e){const ta=document.createElement("textarea");ta.value=buildText();document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();toast("コピーしました");}
