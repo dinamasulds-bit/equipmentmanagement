@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- build: closet-v1 -->
+<!-- build: mobilebar-v2 -->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -103,6 +103,17 @@
   tfoot td{font-weight:800}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2733;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:100;max-width:90%}
   .toast.show{opacity:1}
+  /* スマホ下部固定バー */
+  #mobileBar{display:none}
+  #mobileBar.hide{display:none!important}
+  @media(max-width:600px){
+    #mobileBar{display:flex;gap:10px;position:fixed;left:0;right:0;bottom:0;z-index:40;
+      padding:9px 14px calc(9px + env(safe-area-inset-bottom));background:rgba(255,255,255,.9);
+      backdrop-filter:blur(12px);border-top:1px solid var(--border);box-shadow:0 -4px 18px rgba(30,41,59,.1)}
+    #mobileBar button{flex:1;padding:14px;font-size:15px;border-radius:12px;font-weight:800}
+    #mobileBar #mSave{flex:0 0 42%}
+    body{padding-bottom:74px}
+  }
   .total-amt{font-size:22px;font-weight:800;background:var(--cta-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
   .badge{font-size:11px;background:#e2e8f0;color:#475569;border-radius:6px;padding:2px 7px;font-weight:700}
@@ -183,7 +194,7 @@
         <div class="field"><label>あいさつ文</label><input id="greeting" placeholder="お願いします！"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>ディレクター名 <span class="req">*必須</span></label><input id="director" list="dirList" placeholder="例: 菊地耕大"></div>
+        <div class="field"><label>ディレクター名 <span class="req">*必須</span></label><input id="director" list="dirList" placeholder="例: 稲増大樹"></div>
         <div class="field"><label>エリア</label><select id="area">
           <option value="">（未設定）</option>
           <option>首都圏エリア</option>
@@ -197,8 +208,8 @@
       </div>
       <div class="field"><label>次回現場名</label><input id="site" placeholder="例: イオンモール福津"></div>
       <div class="grid2">
-        <div class="field"><label>依頼者</label><input id="requester" placeholder="例: 菊地耕大"></div>
-        <div class="field"><label>ホテル受け取り者 <button type="button" class="btn-sm" id="copyReq" style="padding:2px 7px;font-size:11px">↑依頼者をコピー</button></label><input id="receiver" placeholder="例: キクチコウダイ"></div>
+        <div class="field"><label>依頼者</label><input id="requester" placeholder="例: 稲増大樹"></div>
+        <div class="field"><label>ホテル受け取り者 <button type="button" class="btn-sm" id="copyReq" style="padding:2px 7px;font-size:11px">↑依頼者をコピー</button></label><input id="receiver" placeholder="例: イナマスダイキ"></div>
       </div>
     </div>
 
@@ -302,6 +313,10 @@
 <datalist id="dirList"></datalist>
 <datalist id="itemNameList"></datalist>
 <datalist id="hotelList"></datalist>
+<div id="mobileBar">
+  <button id="mSave">💾 保存</button>
+  <button id="mCopy" class="btn-primary">📋 コピー</button>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -387,6 +402,7 @@
       $("tab-master").style.display=id==="master"?"":"none";
       $("tab-history").style.display=id==="history"?"":"none";
       $("tab-report").style.display=id==="report"?"":"none";
+      $("mobileBar").classList.toggle("hide",id!=="order");
       if(id==="master")renderMaster();
       if(id==="history")renderSaved();
       if(id==="report")renderReport();
@@ -712,6 +728,8 @@
   $("histSearch").addEventListener("input",renderSaved);
   $("histArea").onchange=renderSaved;
   $("gotoHistory").onclick=()=>{document.querySelector('.tab[data-tab="history"]').click();window.scrollTo(0,0);};
+  $("mCopy").onclick=()=>$("copyBtn").click();
+  $("mSave").onclick=()=>$("saveBtn").click();
   $("addItem").onclick=()=>addItemRow(null,"items").querySelector(".i-name").focus();
   $("addCloset").onclick=()=>addItemRow(null,"closetItems").querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
