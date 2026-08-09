@@ -469,7 +469,10 @@
   function recalcAll(){$("orderTotal").textContent=yen(orderTotal(getItems()));$("closetTotal").textContent=yen(orderTotal(getCloset()));renderPreview();}
 
   // ---------- テキスト ----------
-  function itemLine(it){const q=it.qty?("×"+it.qty+(it.unit||"")):"";if(!it.name)return "・"+(it.qty||"")+(it.unit||"");return "・"+it.name+q;}
+  function itemLine(it){const q=it.qty?("×"+it.qty+(it.unit||"")):"";if(!it.name)return "・"+(it.qty||"")+(it.unit||"");
+    // URL品目は数量の前に半角スペースを入れる（LINE等でURLに「×1個」が吸収されリンクが壊れるのを防ぐ）
+    const sep=(q&&isUrlName(it.name))?" ":"";
+    return "・"+it.name+sep+q;}
   function buildText(){
     const v=id=>$(id).value.trim();const L=[];
     L.push(v("toName")?"@"+v("toName")+" ":"");
