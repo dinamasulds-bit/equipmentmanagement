@@ -246,11 +246,11 @@
       </div>
       <div class="grid2">
         <div class="field"><label>ディレクター名 <span class="req">*必須</span></label><input id="director" list="dirList" placeholder="例: 稲増大樹"></div>
-        <div class="field"><label>エリア</label><select id="area">
+        <div class="field"><label>エリア（倉庫）</label><select id="area">
           <option value="">（未設定）</option>
-          <option>首都圏エリア</option>
-          <option>関信越エリア</option>
-          <option>九州エリア</option>
+          <option>首都圏・関信越</option>
+          <option>九州（沖縄）</option>
+          <option>九州（福岡）</option>
         </select></div>
       </div>
       <div class="grid2">
@@ -339,7 +339,7 @@
     </div>
     <div class="toolbar">
       <input id="histSearch" placeholder="🔍 現場・ディレクター・ホテルで検索" style="flex:1;min-width:180px">
-      <select id="histArea" style="width:auto"><option value="">全エリア</option><option>首都圏エリア</option><option>関信越エリア</option><option>九州エリア</option><option value="(未設定)">未設定</option></select>
+      <select id="histArea" style="width:auto"><option value="">全倉庫</option><option>首都圏・関信越</option><option>九州（沖縄）</option><option>九州（福岡）</option><option value="(未設定)">未設定</option></select>
       <label class="hint" style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="filterPending" style="width:auto"> 未発注のみ</label>
     </div>
     <div id="savedList"></div>
@@ -355,7 +355,7 @@
     </div>
     <div id="invNotice"></div>
     <div class="toolbar">
-      <select id="invArea" style="width:auto"><option value="">全エリア</option><option>首都圏エリア</option><option>関信越エリア</option><option>九州エリア</option><option value="(未設定)">未設定</option></select>
+      <select id="invArea" style="width:auto"><option value="">全倉庫</option><option>首都圏・関信越</option><option>九州（沖縄）</option><option>九州（福岡）</option><option value="(未設定)">未設定</option></select>
       <input id="invSearch" placeholder="🔍 品名で絞り込み" style="flex:1;min-width:160px">
       <label class="hint" style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="invLowOnly" style="width:auto;min-height:auto"> 低在庫のみ</label>
       <button class="btn-sm" id="invAddBtn">＋ 品目を在庫に追加</button>
@@ -374,8 +374,8 @@
   <div class="panel">
     <div class="toolbar">
       <h2 style="margin:0">📊 集計</h2>
-      <label class="hint" style="margin-left:auto">エリア</label>
-      <select id="repArea" style="width:auto"><option value="">全エリア</option><option>首都圏エリア</option><option>関信越エリア</option><option>九州エリア</option><option value="(未設定)">未設定</option></select>
+      <label class="hint" style="margin-left:auto">倉庫</label>
+      <select id="repArea" style="width:auto"><option value="">全倉庫</option><option>首都圏・関信越</option><option>九州（沖縄）</option><option>九州（福岡）</option><option value="(未設定)">未設定</option></select>
       <label class="hint">対象月</label>
       <input type="month" id="repMonth" style="width:auto">
       <button class="btn-sm" id="repAll">全期間</button>
@@ -857,10 +857,10 @@
     html+=`<details><summary style="font-size:14px;padding:4px 0">📊 グラフを表示（月推移・エリア比率）</summary><div style="padding-top:12px">`;
     html+=`<h2 style="margin:0 0 10px">📈 月別 推移${af?"（"+esc(af)+"）":""}</h2>`;
     html+=svgBar(months.map(m=>({label:m.slice(5)+"月",value:byMonth[m]})));
-    html+=`<h2 style="margin:22px 0 10px">🥧 エリア比率（総合計）</h2>`+svgPie(areas.map(a=>({label:a,value:byArea[a].order+byArea[a].closet})));
+    html+=`<h2 style="margin:22px 0 10px">🥧 倉庫比率（総合計）</h2>`+svgPie(areas.map(a=>({label:a,value:byArea[a].order+byArea[a].closet})));
     html+=`</div></details>`;
-    html+=`<h2 style="margin:18px 0 10px">🗺 エリア別 合計</h2>`;
-    html+=`<table><thead><tr><th>エリア</th><th class="r">件数</th><th class="r">発注</th><th class="r">押入れ</th><th class="r">合計</th></tr></thead><tbody>`;
+    html+=`<h2 style="margin:18px 0 10px">🗺 倉庫別 合計</h2>`;
+    html+=`<table><thead><tr><th>倉庫</th><th class="r">件数</th><th class="r">発注</th><th class="r">押入れ</th><th class="r">合計</th></tr></thead><tbody>`;
     html+=areas.map(a=>`<tr><td>${esc(a)}</td><td class="r">${byArea[a].count}</td><td class="r">${yen(byArea[a].order)}</td><td class="r">${yen(byArea[a].closet)}</td><td class="r"><strong>${yen(byArea[a].order+byArea[a].closet)}</strong></td></tr>`).join("");
     html+=`</tbody><tfoot><tr><td>合計</td><td class="r">${list.length}</td><td class="r">${yen(gOrder)}</td><td class="r">${yen(gCloset)}</td><td class="r">${yen(gOrder+gCloset)}</td></tr></tfoot></table>`;
     html+=`<h2 style="margin:22px 0 10px">👤 ディレクター別 合計</h2>`;
@@ -885,7 +885,7 @@
   $("repAll").onclick=()=>{$("repMonth").value="";renderReport();};
   $("repCsv").onclick=()=>{
     const list=currentReportOrders();if(!list.length){toast("対象データがありません");return;}
-    const rows=[["発注日","エリア","ディレクター","現場","区分","品名","数量","単位","単価","金額","状態"]];
+    const rows=[["発注日","倉庫","ディレクター","現場","区分","品名","数量","単位","単価","金額","状態"]];
     list.forEach(o=>{
       (o.data.items||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"","発注",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"]));
       (o.data.closet||[]).forEach(it=>rows.push([o.data.orderDate||"",o.data.area||"",o.data.director||"",o.data.site||"","押入れ",it.name||"",it.qty||"",it.unit||"",num(it.price),num(it.qty)*num(it.price),o.data.status||"未発注"]));
@@ -946,7 +946,7 @@
   $("invReload").onclick=()=>{if(isCloud())refreshFromCloud();else toast("共有OFF。⚙共有設定でシートに接続してください");};
   $("invAddBtn").onclick=()=>{
     if(!isCloud()||!invSupported()){toast("共有接続＋バックエンド更新が必要です");return;}
-    const area=$("invArea").value||prompt("エリア（首都圏エリア / 関信越エリア / 九州エリア / (未設定)）","首都圏エリア");
+    const area=$("invArea").value||prompt("倉庫（首都圏・関信越 / 九州（沖縄） / 九州（福岡）／(未設定)）","首都圏・関信越");
     if(!area)return;
     const name=prompt("品名（品目マスタと同じ名前にすると発注連動します）","");
     if(!name||!name.trim())return;
