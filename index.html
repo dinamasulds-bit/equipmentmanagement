@@ -280,7 +280,7 @@
       <div class="item-head"><div>品名</div><div class="num">数量</div><div>単位</div><div class="num">単価</div><div class="num">小計</div><div></div></div>
       <div id="items"></div>
       <button class="btn-sm btn-block" id="addItem" style="margin-top:6px">＋ 品目を追加</button>
-      <div class="hint">品名を入力/選択すると単価マスタから自動入力。単価はその場で上書き可。URLや「何でもいい」等もそのまま品名に書けます（単価0で金額に含まれません）。<strong style="color:var(--danger)">AmazonなどURLを貼った品目は単価が赤枠になり、未入力のままだと保存できません。</strong></div>
+      <div class="hint">品名は在庫シートの品名から選択（一覧外は<strong style="color:var(--danger)">赤枠になり発注・コピー・保存できません</strong>）。選ぶと単価を自動入力。単価はその場で上書き可。</div>
       <div class="chips" id="quickChips"></div>
       <div style="text-align:right;margin-top:12px">発注分 合計 <span class="total-amt" id="orderTotal">¥0</span></div>
     </div>
@@ -401,6 +401,9 @@
 (function(){
   "use strict";
   const LS_ORDERS="hatchu_orders_cache", LS_MASTER="hatchu_master_cache", LS_URL="hatchu_gas_url";
+  // 発注可能な品目（在庫管理シートの品名のみ）。ここに無い品名は発注・コピー・保存不可
+  const ALLOWED_ITEMS=["インカム","インカム用イヤホンマイク","インカム用ベルトクリップ","ヨーヨー用ネット（小）","ゴミ箱ネット","プライベートボックス","バインダー","クリアボックス","折りたたみコンテナ","ハンガーラック","机","椅子","クリアファイル","スピーカー","テーブルクロス","電卓","飴入れ","携帯BOX","UFOキャッチャー","コードリール","ノベルティ網網セット","風船を入れる機械","色鉛筆","ハサミ","台車","アクリル陳列棚","ポール収納バッグ","荷締めベルト","USB Type-Cケーブル","USB Type-C→DC変換ケーブル","紛失防止タグ（Tile）","布（チェリーピンク）","布（黄色）","布（ピンク）","布（紺色）","布（オレンジ）","Ludensシール","ボールペン","コピー用紙","釣竿","風船","風船棒","ビンゴカード","ヨーヨー","釣り菓子","お菓子（釣り菓子・うまい棒・飴以外）","うまい棒","飴","ラップ","飲み物","紹介シート","単三電池"];
+  function isAllowedItem(n){return ALLOWED_ITEMS.includes(n);}
   const FIELDS=["toName","greeting","director","area","orderDate","site","arrive","requester","receiver","hotelName","hotelZip","hotelTel","hotelAddr"];
   const $=id=>document.getElementById(id);
 
@@ -498,10 +501,10 @@
     try{inventory=JSON.parse(localStorage.getItem(LS_INV))||[];}catch(e){inventory=[];}
     try{movements=JSON.parse(localStorage.getItem(LS_MOV))||[];}catch(e){movements=[];}
   }
+  // マスタを発注可能品目に揃える（単価・単位は既存値を引き継ぐ）
   function seedMaster(){
-    if(master.length)return;
-    master=["リンゴジュース","お茶","あめ","スクイーズ","スクイーズボール","シール","ポケティ","金ポケティ","うまい棒","金テ","電池","スクラッチカード","スクラッチシール","コードリール","テープライト"]
-      .map(n=>({name:n,price:0,unit:""}));
+    const prev=master;
+    master=ALLOWED_ITEMS.map(n=>{const m=prev.find(x=>x.name===n);return {name:n,price:m?m.price:0,unit:m?m.unit:""};});
   }
   function masterByName(n){return master.find(m=>m.name===n);}
 
@@ -565,7 +568,7 @@
       <div class="row-actions"><button class="mv up" title="上へ移動">▲</button><button class="mv down" title="下へ移動">▼</button><button class="rm" title="削除">×</button></div>`;
     const name=row.querySelector(".i-name"),qty=row.querySelector(".i-qty"),unit=row.querySelector(".i-unit"),price=row.querySelector(".i-price"),sub=row.querySelector(".sub");
     name.value=it.name||"";qty.value=it.qty??"";unit.value=it.unit||"";price.value=it.price??"";
-    function recalc(){sub.textContent=yen(num(qty.value)*num(price.value));price.classList.toggle("needprice",isUrlName(name.value.trim())&&num(price.value)<=0);recalcAll();}
+    function recalc(){sub.textContent=yen(num(qty.value)*num(price.value));name.classList.toggle("needprice",!!name.value.trim()&&!isAllowedItem(name.value.trim()));price.classList.toggle("needprice",isUrlName(name.value.trim())&&num(price.value)<=0);recalcAll();}
     name.addEventListener("input",()=>{const m=masterByName(name.value);if(m){if(!price.value)price.value=m.price||"";if(!unit.value&&m.unit)unit.value=m.unit;}recalc();});
     qty.addEventListener("input",recalc);
     price.addEventListener("input",recalc);
@@ -590,6 +593,7 @@
   }
   function getItems(){return getRows("items");}
   function getCloset(){return getRows("closetItems");}
+  function badItems(){return [...getItems(),...getCloset()].filter(it=>it.name&&!isAllowedItem(it.name));}
   function orderTotal(items){return items.reduce((s,it)=>s+num(it.qty)*num(it.price),0);}
   function recalcAll(){$("orderTotal").textContent=yen(orderTotal(getItems()));$("closetTotal").textContent=yen(orderTotal(getCloset()));renderPreview();}
 
@@ -790,7 +794,7 @@
   $("addMaster").onclick=()=>addMasterRow().querySelector(".m-name").focus();
   $("saveMaster").onclick=async()=>{
     if(!isAdmin){toast("管理者だけが保存できます");return;}
-    const newMaster=[...$("masterRows").children].map(r=>({name:r.querySelector(".m-name").value.trim(),price:num(r.querySelector(".m-price").value),unit:r.querySelector(".m-unit").value.trim()})).filter(m=>m.name);
+    const newMaster=[...$("masterRows").children].map(r=>({name:r.querySelector(".m-name").value.trim(),price:num(r.querySelector(".m-price").value),unit:r.querySelector(".m-unit").value.trim()})).filter(m=>isAllowedItem(m.name));
     if(isCloud()){try{$("saveMaster").disabled=true;toast("保存中…");await apiPost({type:"master",master:newMaster});}catch(e){alert("保存失敗: "+e.message);$("saveMaster").disabled=false;return;}$("saveMaster").disabled=false;}
     master=newMaster;cacheLocal();refreshItemNameList();renderQuickChips();toast("マスタを保存しました"+(isCloud()?"（共有）":""));
   };
@@ -1136,11 +1140,13 @@
   $("addItem").onclick=()=>addItemRow(null,"items").querySelector(".i-name").focus();
   $("addCloset").onclick=()=>addItemRow(null,"closetItems").querySelector(".i-name").focus();
   $("copyBtn").onclick=async()=>{
+    const bad=badItems();if(bad.length){alert("発注できない品目があります（在庫シートの品名から選択）:\n"+bad.map(i=>"・"+i.name).join("\n"));return;}
     try{await navigator.clipboard.writeText(buildText());toast("コピーしました！貼れます");}
     catch(e){const ta=document.createElement("textarea");ta.value=buildText();document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();toast("コピーしました");}
   };
   $("saveBtn").onclick=async()=>{
     if(!$("director").value.trim()){toast("ディレクター名は必須です");$("director").focus();return;}
+    const bad=badItems();if(bad.length){alert("発注できない品目があります（在庫シートの品名から選択）:\n"+bad.map(i=>"・"+i.name).join("\n"));document.querySelector('.tab[data-tab="order"]').click();return;}
     markUrlPrices();
     const noPrice=[...getItems(),...getCloset()].filter(it=>it.name&&isUrlName(it.name)&&num(it.price)<=0);
     if(noPrice.length){alert("⚠️ Amazon等のURL品目は金額（単価）が必須です。\n\n未入力:\n"+noPrice.map(i=>"・"+(i.name.length>45?i.name.slice(0,45)+"…":i.name)).join("\n")+"\n\n各品目の「単価」を入れてから保存してください。");document.querySelector('.tab[data-tab="order"]').click();return;}
